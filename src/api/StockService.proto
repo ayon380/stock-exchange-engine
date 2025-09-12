@@ -1,0 +1,154 @@
+syntax = "proto3";
+package stock;
+
+service StockService {
+  // Submit an order (unary)
+  rpc SubmitOrder(OrderRequest) returns (OrderResponse);
+
+  // Get status for an order id
+  rpc OrderStatus(OrderStatusRequest) returns (OrderStatusResponse);
+
+  // Server stream: market data updates for a symbol (subscribe to one or many)
+  rpc StreamMarketData(MarketDataRequest) returns (stream MarketDataUpdate);
+
+  // Server stream: top index snapshot (top N stocks by volume or change)
+  rpc StreamTopIndex(IndexRequest) returns (stream IndexUpdate);
+
+  // Get market index (unary)
+  rpc GetMarketIndex(MarketIndexRequest) returns (MarketIndexResponse);
+
+  // Server stream: live market index updates
+  rpc StreamMarketIndex(MarketIndexRequest) returns (stream MarketIndexUpdate);
+
+  // Server stream: all stocks price updates
+  rpc StreamAllStocks(AllStocksRequest) returns (stream AllStocksUpdate);
+}
+
+message OrderRequest {
+  string order_id = 1;
+  string user_id = 2;
+  string symbol = 3;   // e.g. "AAPL"
+  OrderSide side = 4;
+  OrderType type = 5;
+  int64 quantity = 6;
+  double price = 7;    // used for limit orders
+  int64 timestamp_ms = 8;
+}
+
+enum OrderSide { BUY = 0; SELL = 1; }
+enum OrderType { MARKET = 0; LIMIT = 1; IOC = 2; FOK = 3; }
+
+message OrderResponse {
+  string order_id = 1;
+  bool accepted = 2;
+  string message = 3;
+  repeated Trade trades = 4; // trades produced immediately (may be empty)
+}
+
+message OrderStatusRequest {
+  string order_id = 1;
+}
+
+message OrderStatusResponse {
+  string order_id = 1;
+  bool exists = 2;
+  int64 remaining_qty = 3;
+  string status = 4; // "open", "filled", "cancelled"
+  repeated Trade trades = 5;
+}
+
+message Trade {
+  string buy_order_id = 1;
+  string sell_order_id = 2;
+  string symbol = 3;
+  double price = 4;
+  int64 qty = 5;
+  int64 timestamp_ms = 6;
+}
+
+message MarketDataRequest {
+  repeated string symbols = 1; // subscribe to list (empty = all)
+}
+
+message MarketDataUpdate {
+  string symbol = 1;
+  double last_price = 2;
+  int64 last_qty = 3;
+  repeated PriceLevel top_bids = 4; // maybe top 5
+  repeated PriceLevel top_asks = 5;
+  int64 timestamp_ms = 6;
+}
+
+message PriceLevel {
+  double price = 1;
+  int64 qty = 2;
+}
+
+message IndexRequest {
+  // criteria: "volume" or "change"
+  string criterion = 1;
+  int32 top_n = 2;
+}
+
+message IndexUpdate {
+  int64 timestamp_ms = 1;
+  repeated IndexEntry entries = 2;
+}
+
+message IndexEntry {
+  string symbol = 1;
+  double last_price = 2;
+  double change_pct = 3;
+  int64 volume = 4;
+}
+
+// Market Index Messages
+message MarketIndexRequest {
+  string index_name = 1;  // e.g., "MYINDEX", "S&P500"
+}
+
+message MarketIndexResponse {
+  string index_name = 1;
+  double index_value = 2;
+  double change_points = 3;
+  double change_percent = 4;
+  double day_high = 5;
+  double day_low = 6;
+  double day_open = 7;
+  int64 timestamp_ms = 8;
+  repeated IndexConstituent constituents = 9;
+}
+
+message MarketIndexUpdate {
+  string index_name = 1;
+  double index_value = 2;
+  double change_points = 3;
+  double change_percent = 4;
+  int64 timestamp_ms = 5;
+}
+
+message IndexConstituent {
+  string symbol = 1;
+  double weight = 2;  // percentage weight in index
+  double contribution = 3;  // contribution to index change
+}
+
+// All Stocks Messages
+message AllStocksRequest {
+  bool include_order_book = 1;  // whether to include bid/ask data
+}
+
+message AllStocksUpdate {
+  repeated StockSnapshot stocks = 1;
+  int64 timestamp_ms = 2;
+}
+
+message StockSnapshot {
+  string symbol = 1;
+  double last_price = 2;
+  int64 last_qty = 3;
+  double change_pct = 4;
+  int64 volume = 5;
+  repeated PriceLevel top_bids = 6;
+  repeated PriceLevel top_asks = 7;
+}

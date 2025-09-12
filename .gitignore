@@ -1,0 +1,50 @@
+# --- Build artifacts ---
+# C++/CMake build directory
+build/
+*.o
+*.a
+*.so
+*.dll
+*.exe
+*.out
+
+# --- Python ---
+# Byte-compiled / optimized / C extensions
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Go ---
+# Binaries for the stocktest client
+stocktest/stocktest
+stocktest/stocktest.exe
+
+# --- Dependency Management ---
+# vcpkg installed libraries
+vcpkg_installed/
+
+# --- Generated Files ---
+# Protocol Buffers/gRPC generated files for Python and C++
+# (Adjust patterns if your naming convention is different)
+*_pb2.py
+*_pb2_grpc.py
+*.pb.h
+*.pb.cc
+
+# --- IDE / Editor specific ---
+.vscode/
+.idea/
+*.suo
+*.user
+
+# --- OS specific ---
+# macOS
+.DS_Store
+# Windows
+Thumbs.db
+
+# --- Miscellaneous ---
+# The 'p' directory looks like it might be for personal or temporary files.
+# If it contains build output or other generated content, keep this line.
+# If it contains source code, remove this line.
+p/
