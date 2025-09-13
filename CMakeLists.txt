@@ -49,6 +49,16 @@ add_executable(stock_engine
     ${PROTO_SRCS} ${PROTO_HDRS} ${GRPC_SRCS} ${GRPC_HDRS}
 )
 
+# Add compiler optimizations for release builds
+if(MSVC)
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /GL /fp:fast")
+    target_compile_options(stock_engine PRIVATE /O2 /GL /fp:fast)
+    target_link_options(stock_engine PRIVATE /LTCG)
+else()
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG -march=native")
+    target_compile_options(stock_engine PRIVATE -O3 -march=native -mtune=native -ffast-math)
+endif()
+
 # include dir so generated headers are found
 target_include_directories(stock_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(stock_engine PRIVATE src)

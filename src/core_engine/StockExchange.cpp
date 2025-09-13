@@ -1,4 +1,6 @@
+#define NOMINMAX
 #include "StockExchange.h"
+#include "CPUAffinity.h"
 #include <algorithm>
 #include <iostream>
 #include <chrono>
@@ -25,6 +27,10 @@ StockExchange::~StockExchange() {
 bool StockExchange::initialize() {
     std::cout << "Initializing Stock Exchange with " << STOCK_SYMBOLS.size() << " stocks..." << std::endl;
     
+    // Get available CPU cores for optimal affinity assignment
+    auto available_cores = CPUAffinity::getAvailableCores();
+    std::cout << "Available CPU cores: " << available_cores.size() << std::endl;
+    
     // Initialize database connection
     if (db_manager_) {
         if (!db_manager_->connect()) {
@@ -34,12 +40,13 @@ bool StockExchange::initialize() {
         }
     }
     
-    // Initialize stocks with different starting prices
+    // Initialize stocks with different starting prices and CPU affinity
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> price_dist(50.0, 200.0);
     
-    for (const auto& symbol : STOCK_SYMBOLS) {
+    for (size_t i = 0; i < STOCK_SYMBOLS.size(); ++i) {
+        const auto& symbol = STOCK_SYMBOLS[i];
         double initial_price = price_dist(gen);
         
         // If we have database data, use that instead
@@ -50,8 +57,19 @@ bool StockExchange::initialize() {
             }
         }
         
-        stocks_[symbol] = std::make_unique<Stock>(symbol, initial_price);
-        std::cout << "Initialized " << symbol << " at $" << initial_price << std::endl;
+        // Assign CPU cores in round-robin fashion
+        // Each stock needs 3 cores: matching, market data, trade publisher
+        int base_core = (i * 3) % available_cores.size();
+        int matching_core = available_cores[base_core];
+        int md_core = available_cores[(base_core + 1) % available_cores.size()];
+        int trade_core = available_cores[(base_core + 2) % available_cores.size()];
+        
+        stocks_[symbol] = std::make_unique<Stock>(symbol, initial_price, 
+                                                  matching_core, md_core, trade_core);
+        
+        std::cout << "Initialized " << symbol << " at $" << initial_price 
+                  << " (cores: " << matching_core << "," << md_core 
+                  << "," << trade_core << ")" << std::endl;
     }
     
     return true;
@@ -276,8 +294,8 @@ void StockExchange::calculateMarketIndex() {
     std::sort(stock_values.begin(), stock_values.end(),
               [](const auto& a, const auto& b) { return a.second > b.second; });
     
-    // Take top 5 stocks for index calculation
-    int constituents_count = std::min(5, static_cast<int>(stock_values.size()));
+    // Take all stocks for index calculation (instead of top 5)
+    int constituents_count = static_cast<int>(stock_values.size());
     current_market_index_.constituents.clear();
     
     double total_weight = 0.0;
@@ -287,8 +305,8 @@ void StockExchange::calculateMarketIndex() {
         const std::string& symbol = stock_values[i].first;
         auto& stock = stocks_[symbol];
         
-        // Calculate weight (higher weight for higher market cap)
-        double weight = (constituents_count - i) * 0.2; // Weights: 1.0, 0.8, 0.6, 0.4, 0.2
+        // Use equal weights for all stocks
+        double weight = 1.0 / constituents_count;
         total_weight += weight;
         
         double price = stock->getLastPrice();
@@ -314,8 +332,8 @@ void StockExchange::calculateMarketIndex() {
             current_market_index_.day_high = new_index_value;
             current_market_index_.day_low = new_index_value;
         } else {
-            current_market_index_.day_high = std::max(current_market_index_.day_high, new_index_value);
-            current_market_index_.day_low = std::min(current_market_index_.day_low, new_index_value);
+            current_market_index_.day_high = (std::max)(current_market_index_.day_high, new_index_value);
+            current_market_index_.day_low = (std::min)(current_market_index_.day_low, new_index_value);
         }
         
         // Calculate changes

@@ -88,9 +88,9 @@ using AllStocksCallback = std::function<void(const std::vector<StockSnapshot>&)>
 
 class StockExchange {
 private:
-    // Stock symbols to initialize (8 stocks as requested)
+    // Stock symbols to initialize (reduced to 4 stocks for better CPU usage)
     const std::vector<std::string> STOCK_SYMBOLS = {
-        "AAPL", "GOOGL", "MSFT", "TSLA", "AMZN", "META", "NVDA", "NFLX"
+        "AAPL", "GOOGL", "MSFT", "TSLA"
     };
     
     std::map<std::string, std::unique_ptr<Stock>> stocks_;
