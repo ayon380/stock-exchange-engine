@@ -4,6 +4,31 @@
 #include <chrono>
 #include <condition_variable>
 #include <boost/bind/bind.hpp>
+#include <intrin.h>
+#include <thread>
+#include <algorithm>
+#include <fstream>
+
+// CPU frequency calibration for RDTSC timing
+static uint64_t get_cpu_freq_hz() {
+    static uint64_t freq = 0;
+    if (freq == 0) {
+        auto chrono_start = std::chrono::high_resolution_clock::now();
+        uint64_t rdtsc_start = __rdtsc();
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        uint64_t rdtsc_end = __rdtsc();
+        auto chrono_end = std::chrono::high_resolution_clock::now();
+        auto time_us = std::chrono::duration_cast<std::chrono::microseconds>(chrono_end - chrono_start).count();
+        freq = (rdtsc_end - rdtsc_start) * 1000000ULL / time_us;
+    }
+    return freq;
+}
+
+// Get performance log file
+static std::ofstream& get_perf_file() {
+    static std::ofstream perf_file("performance.txt", std::ios::app);
+    return perf_file;
+}
 
 // Helper function for 64-bit network to host byte order conversion
 uint64_t ntohll(uint64_t value) {
@@ -108,6 +133,16 @@ void TCPConnection::readBody(size_t expected_length) {
 }
 
 void TCPConnection::processMessage(const std::vector<char>& data) {
+    // Sample metrics every 1000 orders to minimize overhead
+    static std::atomic<uint64_t> metrics_counter{0};
+    uint64_t current_count = metrics_counter.fetch_add(1, std::memory_order_relaxed);
+    bool should_measure = (current_count % 1000 == 0);
+
+    uint64_t total_start_cycles = 0;
+    if (should_measure) {
+        total_start_cycles = __rdtsc();
+    }
+
     if (data.size() < sizeof(BinaryOrderRequestBody)) {
         std::cerr << "TCP Connection: Message too small: " << data.size() 
                   << " bytes, expected at least " << sizeof(BinaryOrderRequestBody) << std::endl;
@@ -138,7 +173,7 @@ void TCPConnection::processMessage(const std::vector<char>& data) {
             resp->accepted = 1;
             resp->message_len = htonl(1);
             response[sizeof(BinaryOrderResponse)] = 'P'; // Pong
-            sendResponse(response);
+            sendResponse(response, should_measure ? total_start_cycles : 0);
         }
         return;
     }
@@ -180,8 +215,37 @@ void TCPConnection::processMessage(const std::vector<char>& data) {
         static_cast<int64_t>(ntohll(request->timestamp_ms))
     };
 
-    // Submit order
+    // Submit order with timing (only when sampling)
+    uint64_t engine_start_cycles = 0;
+    if (should_measure) {
+        engine_start_cycles = __rdtsc();
+    }
     std::string result = exchange_->submitOrder(symbol, core_order);
+    long long engine_us = 0;
+    if (should_measure) {
+        uint64_t engine_end_cycles = __rdtsc();
+        uint64_t engine_cycles = engine_end_cycles - engine_start_cycles;
+        engine_us = engine_cycles * 1000000LL / get_cpu_freq_hz();
+        get_perf_file() << "Order execution time: " << engine_us << " microseconds for order " << order_id << std::endl;
+        
+        // Log slow orders
+        if (engine_us > 1000) {
+            get_perf_file() << "Slow order: " << order_id << " engine time " << engine_us << "us" << std::endl;
+        }
+        
+        // Collect latencies for percentiles
+        static std::vector<long long> engine_latencies;
+        engine_latencies.push_back(engine_us);
+        if (engine_latencies.size() >= 50) {
+            std::sort(engine_latencies.begin(), engine_latencies.end());
+            long long p50 = engine_latencies[25];
+            long long p90 = engine_latencies[45];
+            long long p99 = engine_latencies[49];
+            long long max_lat = engine_latencies.back();
+            get_perf_file() << "Engine latency percentiles: p50=" << p50 << "us, p90=" << p90 << "us, p99=" << p99 << "us, max=" << max_lat << "us" << std::endl;
+            engine_latencies.clear();
+        }
+    }
 
     // Prepare response
     bool accepted = (result == "accepted");
@@ -203,18 +267,41 @@ void TCPConnection::processMessage(const std::vector<char>& data) {
     string_data += order_id.size();
     std::memcpy(string_data, message.data(), message.size());
 
-    sendResponse(response);
+    sendResponse(response, should_measure ? total_start_cycles : 0);
 }
 
-void TCPConnection::sendResponse(const std::vector<char>& response) {
+void TCPConnection::sendResponse(const std::vector<char>& response, uint64_t start_cycles) {
     if (!connected_.load()) return;
 
     auto self = shared_from_this();
     boost::asio::async_write(socket_,
         boost::asio::buffer(response.data(), response.size()),
-        [this, self](const boost::system::error_code& error, std::size_t /*bytes_transferred*/) {
+        [this, self, start_cycles](const boost::system::error_code& error, std::size_t /*bytes_transferred*/) {
             if (error) {
                 handleError(error);
+            } else if (start_cycles != 0) {
+                uint64_t end_cycles = __rdtsc();
+                uint64_t total_cycles = end_cycles - start_cycles;
+                long long total_us = total_cycles * 1000000LL / get_cpu_freq_hz();
+                get_perf_file() << "Total trip time: " << total_us << " microseconds" << std::endl;
+                
+                // Log slow total trip
+                if (total_us > 10000) {
+                    get_perf_file() << "Slow total trip: " << total_us << "us" << std::endl;
+                }
+                
+                // Collect latencies for percentiles
+                static std::vector<long long> total_latencies;
+                total_latencies.push_back(total_us);
+                if (total_latencies.size() >= 50) {
+                    std::sort(total_latencies.begin(), total_latencies.end());
+                    long long p50 = total_latencies[25];
+                    long long p90 = total_latencies[45];
+                    long long p99 = total_latencies[49];
+                    long long max_lat = total_latencies.back();
+                    get_perf_file() << "Total trip latency percentiles: p50=" << p50 << "us, p90=" << p90 << "us, p99=" << p99 << "us, max=" << max_lat << "us" << std::endl;
+                    total_latencies.clear();
+                }
             }
         });
 }

@@ -96,7 +96,7 @@ private:
     void readHeader();
     void readBody(size_t expected_length);
     void processMessage(const std::vector<char>& data);
-    void sendResponse(const std::vector<char>& response);
+    void sendResponse(const std::vector<char>& response, uint64_t start_cycles = 0);
     void handleError(const boost::system::error_code& error);
 };
 

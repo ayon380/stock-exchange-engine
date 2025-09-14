@@ -1,0 +1,719 @@
+Order execution time: 3 microseconds for order o5
+Total trip time: 138208 microseconds
+Slow total trip: 138208us
+Order execution time: 2 microseconds for order o999
+Total trip time: 40866 microseconds
+Slow total trip: 40866us
+Order execution time: 2 microseconds for order o2000
+Total trip time: 51645 microseconds
+Slow total trip: 51645us
+Order execution time: 2 microseconds for order o3000
+Total trip time: 31887 microseconds
+Slow total trip: 31887us
+Order execution time: 3 microseconds for order o4000
+Total trip time: 33519 microseconds
+Slow total trip: 33519us
+Order execution time: 2 microseconds for order o5000
+Total trip time: 48254 microseconds
+Slow total trip: 48254us
+Order execution time: 11 microseconds for order o6000
+Total trip time: 35915 microseconds
+Slow total trip: 35915us
+Order execution time: 1 microseconds for order o7000
+Total trip time: 24566 microseconds
+Slow total trip: 24566us
+Order execution time: 3 microseconds for order o8000
+Total trip time: 30839 microseconds
+Slow total trip: 30839us
+Order execution time: 2 microseconds for order o9000
+Total trip time: 28579 microseconds
+Slow total trip: 28579us
+Order execution time: 15 microseconds for order o10000
+Total trip time: 24833 microseconds
+Slow total trip: 24833us
+Order execution time: 1 microseconds for order o11000
+Total trip time: 16333 microseconds
+Slow total trip: 16333us
+Order execution time: 3 microseconds for order o12000
+Total trip time: 32566 microseconds
+Slow total trip: 32566us
+Order execution time: 1 microseconds for order o12999
+Total trip time: 39163 microseconds
+Slow total trip: 39163us
+Order execution time: 15 microseconds for order o14000
+Total trip time: 46194 microseconds
+Slow total trip: 46194us
+Order execution time: 6 microseconds for order o15000
+Total trip time: 37694 microseconds
+Slow total trip: 37694us
+Order execution time: 2 microseconds for order o16000
+Total trip time: 31218 microseconds
+Slow total trip: 31218us
+Order execution time: 2 microseconds for order o17000
+Total trip time: 25205 microseconds
+Slow total trip: 25205us
+Order execution time: 2 microseconds for order o18000
+Total trip time: 45600 microseconds
+Slow total trip: 45600us
+Order execution time: 2 microseconds for order o19000
+Total trip time: 58449 microseconds
+Slow total trip: 58449us
+Order execution time: 1 microseconds for order o20000
+Total trip time: 34304 microseconds
+Slow total trip: 34304us
+Order execution time: 1 microseconds for order o21000
+Total trip time: 30390 microseconds
+Slow total trip: 30390us
+Order execution time: 10 microseconds for order o22000
+Total trip time: 45044 microseconds
+Slow total trip: 45044us
+Order execution time: 1 microseconds for order o23000
+Total trip time: 29590 microseconds
+Slow total trip: 29590us
+Order execution time: 2 microseconds for order o24000
+Total trip time: 22657 microseconds
+Slow total trip: 22657us
+Order execution time: 8 microseconds for order o25000
+Total trip time: 15535 microseconds
+Slow total trip: 15535us
+Order execution time: 2 microseconds for order o26000
+Total trip time: 39103 microseconds
+Slow total trip: 39103us
+Order execution time: 4 microseconds for order o27000
+Total trip time: 47583 microseconds
+Slow total trip: 47583us
+Order execution time: 10 microseconds for order o27998
+Total trip time: 86566 microseconds
+Slow total trip: 86566us
+Order execution time: 2 microseconds for order o29000
+Total trip time: 39131 microseconds
+Slow total trip: 39131us
+Order execution time: 1 microseconds for order o30000
+Total trip time: 34409 microseconds
+Slow total trip: 34409us
+Order execution time: 1 microseconds for order o31000
+Total trip time: 28676 microseconds
+Slow total trip: 28676us
+Order execution time: 3 microseconds for order o32000
+Total trip time: 52785 microseconds
+Slow total trip: 52785us
+Order execution time: 2 microseconds for order o33000
+Total trip time: 55255 microseconds
+Slow total trip: 55255us
+Order execution time: 9 microseconds for order o34000
+Total trip time: 28038 microseconds
+Slow total trip: 28038us
+Order execution time: 11 microseconds for order o35000
+Total trip time: 42047 microseconds
+Slow total trip: 42047us
+Order execution time: 10 microseconds for order o36000
+Total trip time: 36499 microseconds
+Slow total trip: 36499us
+Order execution time: 2 microseconds for order o37001
+Total trip time: 43499 microseconds
+Slow total trip: 43499us
+Order execution time: 3 microseconds for order o38000
+Total trip time: 42576 microseconds
+Slow total trip: 42576us
+Order execution time: 7 microseconds for order o39000
+Total trip time: 38338 microseconds
+Slow total trip: 38338us
+Order execution time: 1 microseconds for order o40000
+Total trip time: 29916 microseconds
+Slow total trip: 29916us
+Order execution time: 4 microseconds for order o41000
+Total trip time: 27281 microseconds
+Slow total trip: 27281us
+Order execution time: 2 microseconds for order o42001
+Total trip time: 38803 microseconds
+Slow total trip: 38803us
+Order execution time: 2 microseconds for order o43000
+Total trip time: 29130 microseconds
+Slow total trip: 29130us
+Order execution time: 9 microseconds for order o44000
+Total trip time: 24724 microseconds
+Slow total trip: 24724us
+Order execution time: 6 microseconds for order o45000
+Total trip time: 32765 microseconds
+Slow total trip: 32765us
+Order execution time: 8 microseconds for order o46000
+Total trip time: 51129 microseconds
+Slow total trip: 51129us
+Order execution time: 2 microseconds for order o47000
+Total trip time: 14636 microseconds
+Slow total trip: 14636us
+Order execution time: 3 microseconds for order o48000
+Total trip time: 11541 microseconds
+Slow total trip: 11541us
+Order execution time: 2 microseconds for order o49000
+Total trip time: 60880 microseconds
+Slow total trip: 60880us
+Order execution time: 1 microseconds for order o50000
+Total trip time: 23282 microseconds
+Slow total trip: 23282us
+Order execution time: 11 microseconds for order o50999
+Total trip time: 58554 microseconds
+Slow total trip: 58554us
+Order execution time: 10 microseconds for order o0
+Total trip time: 121362 microseconds
+Slow total trip: 121362us
+Order execution time: 2 microseconds for order o1000
+Total trip time: 27567 microseconds
+Slow total trip: 27567us
+Order execution time: 3 microseconds for order o2000
+Total trip time: 42744 microseconds
+Slow total trip: 42744us
+Order execution time: 18 microseconds for order o3001
+Total trip time: 49932 microseconds
+Slow total trip: 49932us
+Order execution time: 1 microseconds for order o4000
+Total trip time: 21262 microseconds
+Slow total trip: 21262us
+Order execution time: 2 microseconds for order o5000
+Total trip time: 127564 microseconds
+Slow total trip: 127564us
+Order execution time: 7 microseconds for order o6000
+Total trip time: 49087 microseconds
+Slow total trip: 49087us
+Order execution time: 3 microseconds for order o6999
+Total trip time: 42495 microseconds
+Slow total trip: 42495us
+Order execution time: 9 microseconds for order o8000
+Total trip time: 44625 microseconds
+Slow total trip: 44625us
+Order execution time: 10 microseconds for order o9000
+Total trip time: 23721 microseconds
+Slow total trip: 23721us
+Order execution time: 2 microseconds for order o10000
+Total trip time: 32337 microseconds
+Slow total trip: 32337us
+Order execution time: 3 microseconds for order o11000
+Total trip time: 23789 microseconds
+Slow total trip: 23789us
+Order execution time: 2 microseconds for order o12000
+Total trip time: 41124 microseconds
+Slow total trip: 41124us
+Order execution time: 3 microseconds for order o13000
+Total trip time: 43328 microseconds
+Slow total trip: 43328us
+Order execution time: 1 microseconds for order o14000
+Total trip time: 29416 microseconds
+Slow total trip: 29416us
+Order execution time: 1 microseconds for order o15000
+Total trip time: 27418 microseconds
+Slow total trip: 27418us
+Order execution time: 10 microseconds for order o16000
+Total trip time: 27708 microseconds
+Slow total trip: 27708us
+Order execution time: 3 microseconds for order o17001
+Total trip time: 13569 microseconds
+Slow total trip: 13569us
+Order execution time: 2 microseconds for order o18000
+Total trip time: 19809 microseconds
+Slow total trip: 19809us
+Order execution time: 2 microseconds for order o19000
+Total trip time: 55998 microseconds
+Slow total trip: 55998us
+Order execution time: 9 microseconds for order o20000
+Total trip time: 34739 microseconds
+Slow total trip: 34739us
+Order execution time: 1 microseconds for order o21000
+Total trip time: 34142 microseconds
+Slow total trip: 34142us
+Order execution time: 2 microseconds for order o22000
+Total trip time: 29532 microseconds
+Slow total trip: 29532us
+Order execution time: 2 microseconds for order o23000
+Total trip time: 49641 microseconds
+Slow total trip: 49641us
+Order execution time: 2 microseconds for order o24000
+Total trip time: 43367 microseconds
+Slow total trip: 43367us
+Order execution time: 3 microseconds for order o25000
+Total trip time: 63400 microseconds
+Slow total trip: 63400us
+Order execution time: 2 microseconds for order o26000
+Total trip time: 33531 microseconds
+Slow total trip: 33531us
+Order execution time: 2 microseconds for order o27000
+Total trip time: 77410 microseconds
+Slow total trip: 77410us
+Order execution time: 2 microseconds for order o28000
+Total trip time: 34290 microseconds
+Slow total trip: 34290us
+Order execution time: 1 microseconds for order o29000
+Total trip time: 37394 microseconds
+Slow total trip: 37394us
+Order execution time: 0 microseconds for order o30000
+Total trip time: 29282 microseconds
+Slow total trip: 29282us
+Order execution time: 2 microseconds for order o31000
+Total trip time: 22933 microseconds
+Slow total trip: 22933us
+Order execution time: 3 microseconds for order o32000
+Total trip time: 44044 microseconds
+Slow total trip: 44044us
+Order execution time: 8 microseconds for order o33000
+Total trip time: 25679 microseconds
+Slow total trip: 25679us
+Order execution time: 10 microseconds for order o34001
+Total trip time: 20982 microseconds
+Slow total trip: 20982us
+Order execution time: 11 microseconds for order o35000
+Total trip time: 30922 microseconds
+Slow total trip: 30922us
+Order execution time: 0 microseconds for order o36000
+Total trip time: 18764 microseconds
+Slow total trip: 18764us
+Order execution time: 2 microseconds for order o37000
+Total trip time: 35720 microseconds
+Slow total trip: 35720us
+Order execution time: 5 microseconds for order o37998
+Total trip time: 19870 microseconds
+Slow total trip: 19870us
+Order execution time: 1 microseconds for order o39000
+Total trip time: 32240 microseconds
+Slow total trip: 32240us
+Order execution time: 2 microseconds for order o40000
+Total trip time: 25256 microseconds
+Slow total trip: 25256us
+Order execution time: 2 microseconds for order o41000
+Total trip time: 32250 microseconds
+Slow total trip: 32250us
+Order execution time: 1 microseconds for order o42000
+Total trip time: 38819 microseconds
+Slow total trip: 38819us
+Order execution time: 1 microseconds for order o43000
+Total trip time: 30780 microseconds
+Slow total trip: 30780us
+Order execution time: 1 microseconds for order o44000
+Total trip time: 35893 microseconds
+Slow total trip: 35893us
+Order execution time: 1 microseconds for order o45000
+Total trip time: 37971 microseconds
+Slow total trip: 37971us
+Order execution time: 2 microseconds for order o46000
+Total trip time: 64469 microseconds
+Slow total trip: 64469us
+Order execution time: 16 microseconds for order o47001
+Total trip time: 22237 microseconds
+Slow total trip: 22237us
+Order execution time: 1 microseconds for order o48000
+Total trip time: 59140 microseconds
+Slow total trip: 59140us
+Order execution time: 7 microseconds for order o49000
+Engine latency percentiles: p50=2us, p90=10us, p99=18us, max=18us
+Total trip time: 39241 microseconds
+Slow total trip: 39241us
+Total trip latency percentiles: p50=34290us, p90=63400us, p99=127564us, max=127564us
+Order execution time: 2 microseconds for order o50000
+Total trip time: 33038 microseconds
+Slow total trip: 33038us
+Order execution time: 1 microseconds for order o51000
+Total trip time: 38117 microseconds
+Slow total trip: 38117us
+Order execution time: 1 microseconds for order o52000
+Total trip time: 9344 microseconds
+Order execution time: 1 microseconds for order o52994
+Total trip time: 28518 microseconds
+Slow total trip: 28518us
+Order execution time: 23 microseconds for order o54001
+Total trip time: 13659 microseconds
+Slow total trip: 13659us
+Order execution time: 2 microseconds for order o55000
+Total trip time: 10506 microseconds
+Slow total trip: 10506us
+Order execution time: 2 microseconds for order o56000
+Total trip time: 25300 microseconds
+Slow total trip: 25300us
+Order execution time: 1 microseconds for order o57000
+Total trip time: 30162 microseconds
+Slow total trip: 30162us
+Order execution time: 3 microseconds for order o58000
+Total trip time: 38161 microseconds
+Slow total trip: 38161us
+Order execution time: 2 microseconds for order o59000
+Total trip time: 17632 microseconds
+Slow total trip: 17632us
+Order execution time: 0 microseconds for order o60000
+Total trip time: 38196 microseconds
+Slow total trip: 38196us
+Order execution time: 1 microseconds for order o61000
+Total trip time: 27480 microseconds
+Slow total trip: 27480us
+Order execution time: 9 microseconds for order o62000
+Total trip time: 132981 microseconds
+Slow total trip: 132981us
+Order execution time: 0 microseconds for order o63000
+Total trip time: 32275 microseconds
+Slow total trip: 32275us
+Order execution time: 3 microseconds for order o64000
+Total trip time: 35882 microseconds
+Slow total trip: 35882us
+Order execution time: 2 microseconds for order o65000
+Total trip time: 21312 microseconds
+Slow total trip: 21312us
+Order execution time: 11 microseconds for order o66000
+Total trip time: 43105 microseconds
+Slow total trip: 43105us
+Order execution time: 2 microseconds for order o67000
+Total trip time: 47783 microseconds
+Slow total trip: 47783us
+Order execution time: 3 microseconds for order o68000
+Total trip time: 24569 microseconds
+Slow total trip: 24569us
+Order execution time: 1 microseconds for order o68999
+Total trip time: 26757 microseconds
+Slow total trip: 26757us
+Order execution time: 1 microseconds for order o70000
+Total trip time: 15963 microseconds
+Slow total trip: 15963us
+Order execution time: 11 microseconds for order o71000
+Total trip time: 50278 microseconds
+Slow total trip: 50278us
+Order execution time: 1 microseconds for order o72000
+Total trip time: 21014 microseconds
+Slow total trip: 21014us
+Order execution time: 3 microseconds for order o73000
+Total trip time: 15725 microseconds
+Slow total trip: 15725us
+Order execution time: 2 microseconds for order o74000
+Total trip time: 36356 microseconds
+Slow total trip: 36356us
+Order execution time: 1 microseconds for order o75000
+Total trip time: 42494 microseconds
+Slow total trip: 42494us
+Order execution time: 2 microseconds for order o76000
+Total trip time: 22245 microseconds
+Slow total trip: 22245us
+Order execution time: 12 microseconds for order o77000
+Total trip time: 44024 microseconds
+Slow total trip: 44024us
+Order execution time: 3 microseconds for order o78000
+Total trip time: 39094 microseconds
+Slow total trip: 39094us
+Order execution time: 2 microseconds for order o79000
+Total trip time: 11962 microseconds
+Slow total trip: 11962us
+Order execution time: 9 microseconds for order o80000
+Total trip time: 35627 microseconds
+Slow total trip: 35627us
+Order execution time: 2 microseconds for order o81000
+Total trip time: 60721 microseconds
+Slow total trip: 60721us
+Order execution time: 2 microseconds for order o82000
+Total trip time: 25781 microseconds
+Slow total trip: 25781us
+Order execution time: 2 microseconds for order o83000
+Total trip time: 38603 microseconds
+Slow total trip: 38603us
+Order execution time: 3 microseconds for order o84000
+Total trip time: 54602 microseconds
+Slow total trip: 54602us
+Order execution time: 0 microseconds for order o84998
+Total trip time: 24259 microseconds
+Slow total trip: 24259us
+Order execution time: 1 microseconds for order o86000
+Total trip time: 34425 microseconds
+Slow total trip: 34425us
+Order execution time: 1 microseconds for order o87000
+Total trip time: 34155 microseconds
+Slow total trip: 34155us
+Order execution time: 19 microseconds for order o88000
+Total trip time: 23557 microseconds
+Slow total trip: 23557us
+Order execution time: 4 microseconds for order o89000
+Total trip time: 45568 microseconds
+Slow total trip: 45568us
+Order execution time: 9 microseconds for order o90000
+Total trip time: 31318 microseconds
+Slow total trip: 31318us
+Order execution time: 8 microseconds for order o91000
+Total trip time: 22717 microseconds
+Slow total trip: 22717us
+Order execution time: 1 microseconds for order o92000
+Total trip time: 37927 microseconds
+Slow total trip: 37927us
+Order execution time: 3 microseconds for order o93000
+Total trip time: 26950 microseconds
+Slow total trip: 26950us
+Order execution time: 3 microseconds for order o15
+Total trip time: 164783 microseconds
+Slow total trip: 164783us
+Order execution time: 9 microseconds for order o1000
+Total trip time: 75168 microseconds
+Slow total trip: 75168us
+Order execution time: 5 microseconds for order o2000
+Total trip time: 112375 microseconds
+Slow total trip: 112375us
+Order execution time: 2 microseconds for order o3000
+Total trip time: 505150 microseconds
+Slow total trip: 505150us
+Order execution time: 2 microseconds for order o4000
+Total trip time: 77872 microseconds
+Slow total trip: 77872us
+Order execution time: 0 microseconds for order o5000
+Total trip time: 35498 microseconds
+Slow total trip: 35498us
+Order execution time: 0 microseconds for order o6002
+Total trip time: 33058 microseconds
+Slow total trip: 33058us
+Order execution time: 9 microseconds for order o7000
+Total trip time: 20000 microseconds
+Slow total trip: 20000us
+Order execution time: 2 microseconds for order o8000
+Total trip time: 52088 microseconds
+Slow total trip: 52088us
+Order execution time: 1 microseconds for order o9000
+Total trip time: 22927 microseconds
+Slow total trip: 22927us
+Order execution time: 3 microseconds for order o10000
+Total trip time: 37306 microseconds
+Slow total trip: 37306us
+Order execution time: 2 microseconds for order o11000
+Total trip time: 33077 microseconds
+Slow total trip: 33077us
+Order execution time: 3 microseconds for order o12000
+Total trip time: 23092 microseconds
+Slow total trip: 23092us
+Order execution time: 3 microseconds for order o13000
+Total trip time: 15484 microseconds
+Slow total trip: 15484us
+Order execution time: 1 microseconds for order o14000
+Total trip time: 29009 microseconds
+Slow total trip: 29009us
+Order execution time: 2 microseconds for order o15001
+Total trip time: 19077 microseconds
+Slow total trip: 19077us
+Order execution time: 2 microseconds for order o16000
+Total trip time: 54238 microseconds
+Slow total trip: 54238us
+Order execution time: 2 microseconds for order o17000
+Total trip time: 28411 microseconds
+Slow total trip: 28411us
+Order execution time: 3 microseconds for order o18000
+Total trip time: 24047 microseconds
+Slow total trip: 24047us
+Order execution time: 2 microseconds for order o19000
+Total trip time: 52419 microseconds
+Slow total trip: 52419us
+Order execution time: 3 microseconds for order o19999
+Total trip time: 62685 microseconds
+Slow total trip: 62685us
+Order execution time: 19 microseconds for order o21000
+Total trip time: 24692 microseconds
+Slow total trip: 24692us
+Order execution time: 17 microseconds for order o22000
+Total trip time: 140249 microseconds
+Slow total trip: 140249us
+Order execution time: 4 microseconds for order o23000
+Total trip time: 42364 microseconds
+Slow total trip: 42364us
+Order execution time: 2 microseconds for order o24000
+Total trip time: 16862 microseconds
+Slow total trip: 16862us
+Order execution time: 3 microseconds for order o25000
+Total trip time: 62391 microseconds
+Slow total trip: 62391us
+Order execution time: 1 microseconds for order o26001
+Total trip time: 46167 microseconds
+Slow total trip: 46167us
+Order execution time: 2 microseconds for order o27001
+Total trip time: 42369 microseconds
+Slow total trip: 42369us
+Order execution time: 10 microseconds for order o28000
+Total trip time: 39323 microseconds
+Slow total trip: 39323us
+Order execution time: 28 microseconds for order o29000
+Total trip time: 35835 microseconds
+Slow total trip: 35835us
+Order execution time: 2 microseconds for order o30000
+Total trip time: 69869 microseconds
+Slow total trip: 69869us
+Order execution time: 2 microseconds for order o30999
+Total trip time: 45745 microseconds
+Slow total trip: 45745us
+Order execution time: 2 microseconds for order o32000
+Total trip time: 49624 microseconds
+Slow total trip: 49624us
+Order execution time: 2 microseconds for order o33000
+Total trip time: 24923 microseconds
+Slow total trip: 24923us
+Order execution time: 7 microseconds for order o34000
+Total trip time: 32497 microseconds
+Slow total trip: 32497us
+Order execution time: 2 microseconds for order o35000
+Total trip time: 200599 microseconds
+Slow total trip: 200599us
+Order execution time: 1 microseconds for order o36000
+Total trip time: 31024 microseconds
+Slow total trip: 31024us
+Order execution time: 19 microseconds for order o0
+Total trip time: 149645 microseconds
+Slow total trip: 149645us
+Order execution time: 12 microseconds for order o1000
+Total trip time: 28706 microseconds
+Slow total trip: 28706us
+Order execution time: 3 microseconds for order o2000
+Total trip time: 121279 microseconds
+Slow total trip: 121279us
+Order execution time: 20 microseconds for order o3000
+Total trip time: 18469 microseconds
+Slow total trip: 18469us
+Order execution time: 1 microseconds for order o4000
+Total trip time: 48956 microseconds
+Slow total trip: 48956us
+Order execution time: 15 microseconds for order o5000
+Total trip time: 133105 microseconds
+Slow total trip: 133105us
+Order execution time: 2 microseconds for order o6000
+Total trip time: 69515 microseconds
+Slow total trip: 69515us
+Order execution time: 2 microseconds for order o7000
+Total trip time: 18589 microseconds
+Slow total trip: 18589us
+Order execution time: 13 microseconds for order o8000
+Total trip time: 78028 microseconds
+Slow total trip: 78028us
+Order execution time: 3 microseconds for order o9000
+Total trip time: 48689 microseconds
+Slow total trip: 48689us
+Order execution time: 3 microseconds for order o10000
+Total trip time: 6902 microseconds
+Order execution time: 2 microseconds for order o11000
+Total trip time: 123251 microseconds
+Slow total trip: 123251us
+Order execution time: 2 microseconds for order o12000
+Total trip time: 47640 microseconds
+Slow total trip: 47640us
+Order execution time: 10 microseconds for order o13000
+Total trip time: 19890 microseconds
+Slow total trip: 19890us
+Order execution time: 2 microseconds for order o14000
+Total trip time: 74125 microseconds
+Slow total trip: 74125us
+Order execution time: 1 microseconds for order o15000
+Total trip time: 23728 microseconds
+Slow total trip: 23728us
+Order execution time: 10 microseconds for order o15999
+Total trip time: 98850 microseconds
+Slow total trip: 98850us
+Order execution time: 1 microseconds for order o17000
+Total trip time: 12649 microseconds
+Slow total trip: 12649us
+Order execution time: 7 microseconds for order o18000
+Total trip time: 63146 microseconds
+Slow total trip: 63146us
+Order execution time: 2 microseconds for order o19000
+Total trip time: 65382 microseconds
+Slow total trip: 65382us
+Order execution time: 8 microseconds for order o20000
+Total trip time: 61453 microseconds
+Slow total trip: 61453us
+Order execution time: 11 microseconds for order o21001
+Total trip time: 141388 microseconds
+Slow total trip: 141388us
+Order execution time: 2 microseconds for order o22001
+Total trip time: 184560 microseconds
+Slow total trip: 184560us
+Order execution time: 11 microseconds for order o23000
+Total trip time: 48404 microseconds
+Slow total trip: 48404us
+Order execution time: 15 microseconds for order o24000
+Total trip time: 487076 microseconds
+Slow total trip: 487076us
+Order execution time: 12 microseconds for order o25000
+Total trip time: 160815 microseconds
+Slow total trip: 160815us
+Order execution time: 1 microseconds for order o26000
+Total trip time: 23415 microseconds
+Slow total trip: 23415us
+Order execution time: 1 microseconds for order o26999
+Total trip time: 406221 microseconds
+Slow total trip: 406221us
+Order execution time: 1 microseconds for order o28000
+Total trip time: 62300 microseconds
+Slow total trip: 62300us
+Order execution time: 1 microseconds for order o29000
+Total trip time: 49854 microseconds
+Slow total trip: 49854us
+Order execution time: 2 microseconds for order o30000
+Total trip time: 108700 microseconds
+Slow total trip: 108700us
+Order execution time: 16 microseconds for order o31000
+Total trip time: 55305 microseconds
+Slow total trip: 55305us
+Order execution time: 2 microseconds for order o32000
+Total trip time: 26401 microseconds
+Slow total trip: 26401us
+Order execution time: 2 microseconds for order o33000
+Total trip time: 95464 microseconds
+Slow total trip: 95464us
+Order execution time: 1 microseconds for order o34000
+Total trip time: 41771 microseconds
+Slow total trip: 41771us
+Order execution time: 3 microseconds for order o35000
+Total trip time: 31528 microseconds
+Slow total trip: 31528us
+Order execution time: 5 microseconds for order o36000
+Total trip time: 50371 microseconds
+Slow total trip: 50371us
+Order execution time: 17 microseconds for order o36999
+Total trip time: 68343 microseconds
+Slow total trip: 68343us
+Order execution time: 2 microseconds for order o38000
+Total trip time: 51671 microseconds
+Slow total trip: 51671us
+Order execution time: 4 microseconds for order o39000
+Total trip time: 40738 microseconds
+Slow total trip: 40738us
+Order execution time: 2 microseconds for order o40000
+Total trip time: 206561 microseconds
+Slow total trip: 206561us
+Order execution time: 3 microseconds for order o41000
+Total trip time: 43663 microseconds
+Slow total trip: 43663us
+Order execution time: 15 microseconds for order o42000
+Total trip time: 54922 microseconds
+Slow total trip: 54922us
+Order execution time: 3 microseconds for order o43000
+Total trip time: 74894 microseconds
+Slow total trip: 74894us
+Order execution time: 2 microseconds for order o44000
+Total trip time: 169908 microseconds
+Slow total trip: 169908us
+Order execution time: 2 microseconds for order o45000
+Total trip time: 77985 microseconds
+Slow total trip: 77985us
+Order execution time: 2 microseconds for order o45998
+Total trip time: 93422 microseconds
+Slow total trip: 93422us
+Order execution time: 2 microseconds for order o47000
+Total trip time: 64954 microseconds
+Slow total trip: 64954us
+Order execution time: 2 microseconds for order o48000
+Total trip time: 60960 microseconds
+Slow total trip: 60960us
+Order execution time: 3 microseconds for order o49000
+Engine latency percentiles: p50=3us, p90=15us, p99=20us, max=20us
+Total trip time: 51298 microseconds
+Slow total trip: 51298us
+Total trip latency percentiles: p50=62300us, p90=169908us, p99=487076us, max=487076us
+Order execution time: 1 microseconds for order o50000
+Total trip time: 52490 microseconds
+Slow total trip: 52490us
+Order execution time: 2 microseconds for order o51000
+Total trip time: 78980 microseconds
+Slow total trip: 78980us
+Order execution time: 4 microseconds for order o52000
+Total trip time: 82636 microseconds
+Slow total trip: 82636us
+Order execution time: 2 microseconds for order o53000
+Total trip time: 189728 microseconds
+Slow total trip: 189728us
+Order execution time: 144 microseconds for order o54000
+Total trip time: 36140 microseconds
+Slow total trip: 36140us
+Order execution time: 4 microseconds for order o55000
+Total trip time: 67966 microseconds
+Slow total trip: 67966us
