@@ -1,6 +1,10 @@
 {
   "dependencies": [
     "grpc",
-    "libpqxx"
+    "libpqxx",
+    "boost-system",
+    "boost-thread",
+    "boost-asio",
+    "boost-interprocess"
   ]
 }

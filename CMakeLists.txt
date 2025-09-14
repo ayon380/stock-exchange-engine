@@ -12,6 +12,7 @@ endif()
 find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 find_package(libpqxx CONFIG REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system thread interprocess)
 
 # Find the gRPC plugin
 find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin PATHS ${CMAKE_CURRENT_SOURCE_DIR}/build/vcpkg_installed/x64-windows/tools/grpc)
@@ -43,14 +44,18 @@ add_custom_command(
 add_executable(stock_engine
     src/main.cpp
     src/api/GRPCServer.cpp
+    src/api/TCPServer.cpp
+    src/api/SharedMemoryQueue.cpp
     src/core_engine/StockExchange.cpp
     src/core_engine/DatabaseManager.cpp
     src/core_engine/Stock.cpp
     ${PROTO_SRCS} ${PROTO_HDRS} ${GRPC_SRCS} ${GRPC_HDRS}
 )
 
+
 # Add compiler optimizations for release builds
 if(MSVC)
+    add_definitions(-D_WIN32_WINNT=0x0601)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /GL /fp:fast")
     target_compile_options(stock_engine PRIVATE /O2 /GL /fp:fast)
     target_link_options(stock_engine PRIVATE /LTCG)
@@ -63,4 +68,5 @@ endif()
 target_include_directories(stock_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(stock_engine PRIVATE src)
 
-target_link_libraries(stock_engine PRIVATE gRPC::grpc++ protobuf::libprotobuf libpqxx::pqxx)
+target_link_libraries(stock_engine PRIVATE gRPC::grpc++ protobuf::libprotobuf libpqxx::pqxx Boost::system Boost::thread Boost::interprocess)
+

@@ -30,6 +30,9 @@ public:
     void start();
     void stop();
     
+    // Get access to the underlying exchange for TCP server
+    StockExchange* getExchange() { return exchange_.get(); }
+
     // Unary RPCs
     grpc::Status SubmitOrder(grpc::ServerContext* context,
                              const stock::OrderRequest* request,
