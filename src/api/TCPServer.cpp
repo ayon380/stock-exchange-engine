@@ -8,6 +8,7 @@
 #include <thread>
 #include <algorithm>
 #include <fstream>
+#include "AuthenticationManager.h"
 
 // CPU frequency calibration for RDTSC timing
 static uint64_t get_cpu_freq_hz() {
@@ -50,11 +51,16 @@ double uint64_to_double(uint64_t value) {
 }
 
 // TCPConnection implementation
-TCPConnection::TCPConnection(boost::asio::ip::tcp::socket socket, StockExchange* exchange)
-    : socket_(std::move(socket)), exchange_(exchange) {
+TCPConnection::TCPConnection(boost::asio::ip::tcp::socket socket, StockExchange* exchange, AuthenticationManager* auth_manager)
+    : socket_(std::move(socket)), exchange_(exchange), auth_manager_(auth_manager) {
+    // Generate unique connection ID (using socket native handle or a counter)
+    connection_id_ = static_cast<ConnectionId>(socket_.native_handle());
 }
 
 TCPConnection::~TCPConnection() {
+    if (auth_manager_) {
+        auth_manager_->removeSession(connection_id_);
+    }
     stop();
 }
 
@@ -95,7 +101,7 @@ void TCPConnection::readHeader() {
             // The message_length includes the 4-byte length header, so subtract it
             size_t body_length = message_length - sizeof(uint32_t);
 
-            if (message_length > 8192 || body_length < sizeof(BinaryOrderRequestBody)) {
+            if (message_length > 8192 || body_length < 1) { // Minimum 1 byte for message type
                 std::cerr << "TCP Connection: Invalid message length: " << message_length 
                          << " (body: " << body_length << ")" << std::endl;
                 handleError(boost::asio::error::make_error_code(boost::asio::error::invalid_argument));
@@ -133,141 +139,63 @@ void TCPConnection::readBody(size_t expected_length) {
 }
 
 void TCPConnection::processMessage(const std::vector<char>& data) {
-    // Sample metrics every 1000 orders to minimize overhead
-    static std::atomic<uint64_t> metrics_counter{0};
-    uint64_t current_count = metrics_counter.fetch_add(1, std::memory_order_relaxed);
-    bool should_measure = (current_count % 1000 == 0);
-
-    uint64_t total_start_cycles = 0;
-    if (should_measure) {
-        total_start_cycles = __rdtsc();
+    if (data.empty()) {
+        std::cerr << "TCP Connection: Empty message received" << std::endl;
+        return;
     }
 
-    if (data.size() < sizeof(BinaryOrderRequestBody)) {
-        std::cerr << "TCP Connection: Message too small: " << data.size() 
-                  << " bytes, expected at least " << sizeof(BinaryOrderRequestBody) << std::endl;
-        return; // Invalid message
+    // Peek at message type
+    if (data.size() < sizeof(MessageType)) {
+        std::cerr << "TCP Connection: Message too small to determine type" << std::endl;
+        return;
     }
 
-    const BinaryOrderRequestBody* request = reinterpret_cast<const BinaryOrderRequestBody*>(data.data());
-
-    // Convert from network byte order
-    uint32_t order_id_len = ntohl(request->order_id_len);
-    uint32_t user_id_len = ntohl(request->user_id_len); 
-    uint32_t symbol_len = ntohl(request->symbol_len);
+    MessageType msg_type = *reinterpret_cast<const MessageType*>(data.data());
     
-    std::cout << "TCP Connection: Processing message - type: " << static_cast<int>(request->type)
-              << ", order_id_len: " << order_id_len 
-              << ", user_id_len: " << user_id_len
-              << ", symbol_len: " << symbol_len << std::endl;
-
-    if (request->type != MessageType::SUBMIT_ORDER) {
-        // Handle other message types (heartbeat, etc.)
-        if (request->type == MessageType::HEARTBEAT) {
-            // Send heartbeat ack
-            std::vector<char> response(sizeof(BinaryOrderResponse) + 1);
-            BinaryOrderResponse* resp = reinterpret_cast<BinaryOrderResponse*>(response.data());
-            resp->message_length = htonl(sizeof(BinaryOrderResponse) + 1);
-            resp->type = MessageType::HEARTBEAT_ACK;
-            resp->order_id_len = htonl(1);
-            resp->accepted = 1;
-            resp->message_len = htonl(1);
-            response[sizeof(BinaryOrderResponse)] = 'P'; // Pong
-            sendResponse(response, should_measure ? total_start_cycles : 0);
-        }
-        return;
+    switch (msg_type) {
+        case MessageType::LOGIN_REQUEST:
+            processLoginRequest(data);
+            break;
+            
+        case MessageType::SUBMIT_ORDER:
+            // Check if user is authenticated first
+            if (!auth_manager_->isAuthenticated(connection_id_)) {
+                std::cerr << "TCP Connection: Order received from unauthenticated connection " << connection_id_ << std::endl;
+                // Send rejection response
+                std::vector<char> response(sizeof(BinaryOrderResponse) + 20);
+                BinaryOrderResponse* resp = reinterpret_cast<BinaryOrderResponse*>(response.data());
+                resp->message_length = htonl(sizeof(BinaryOrderResponse) + 20);
+                resp->type = MessageType::ORDER_RESPONSE;
+                resp->order_id_len = htonl(0);
+                resp->accepted = 0;
+                resp->message_len = htonl(20);
+                std::memcpy(response.data() + sizeof(BinaryOrderResponse), "Not authenticated", 17);
+                sendResponse(response);
+                return;
+            }
+            processOrderRequest(data);
+            break;
+            
+        case MessageType::HEARTBEAT:
+            // Update last activity and send heartbeat ack
+            auth_manager_->updateLastActivity(connection_id_);
+            {
+                std::vector<char> response(sizeof(BinaryOrderResponse) + 1);
+                BinaryOrderResponse* resp = reinterpret_cast<BinaryOrderResponse*>(response.data());
+                resp->message_length = htonl(sizeof(BinaryOrderResponse) + 1);
+                resp->type = MessageType::HEARTBEAT_ACK;
+                resp->order_id_len = htonl(1);
+                resp->accepted = 1;
+                resp->message_len = htonl(1);
+                response[sizeof(BinaryOrderResponse)] = 'P'; // Pong
+                sendResponse(response);
+            }
+            break;
+            
+        default:
+            std::cerr << "TCP Connection: Unknown message type: " << static_cast<int>(msg_type) << std::endl;
+            break;
     }
-
-    // Validate string lengths
-    size_t expected_size = sizeof(BinaryOrderRequestBody) + order_id_len + user_id_len + symbol_len;
-    if (data.size() < expected_size) {
-        std::cerr << "TCP Connection: Message size mismatch - got: " << data.size() 
-                  << ", expected: " << expected_size << std::endl;
-        return;
-    }
-
-    // Extract strings from variable-length data
-    size_t offset = sizeof(BinaryOrderRequestBody);
-    std::string order_id(data.data() + offset, order_id_len);
-    offset += order_id_len;
-
-    std::string user_id(data.data() + offset, user_id_len);
-    offset += user_id_len;
-
-    std::string symbol(data.data() + offset, symbol_len);
-
-    // Convert price from network byte order to host byte order
-    uint64_t price_bits;
-    std::memcpy(&price_bits, &request->price, sizeof(double));
-    uint64_t host_price_bits = ntohll(price_bits);
-    double correct_price;
-    std::memcpy(&correct_price, &host_price_bits, sizeof(double));
-
-    // Convert to core Order
-    Order core_order{
-        order_id,
-        user_id,
-        symbol,
-        static_cast<int>(request->side),
-        static_cast<int>(request->order_type),
-        static_cast<int64_t>(ntohll(request->quantity)),
-        correct_price,
-        static_cast<int64_t>(ntohll(request->timestamp_ms))
-    };
-
-    // Submit order with timing (only when sampling)
-    uint64_t engine_start_cycles = 0;
-    if (should_measure) {
-        engine_start_cycles = __rdtsc();
-    }
-    std::string result = exchange_->submitOrder(symbol, core_order);
-    long long engine_us = 0;
-    if (should_measure) {
-        uint64_t engine_end_cycles = __rdtsc();
-        uint64_t engine_cycles = engine_end_cycles - engine_start_cycles;
-        engine_us = engine_cycles * 1000000LL / get_cpu_freq_hz();
-        get_perf_file() << "Order execution time: " << engine_us << " microseconds for order " << order_id << std::endl;
-        
-        // Log slow orders
-        if (engine_us > 1000) {
-            get_perf_file() << "Slow order: " << order_id << " engine time " << engine_us << "us" << std::endl;
-        }
-        
-        // Collect latencies for percentiles
-        static std::vector<long long> engine_latencies;
-        engine_latencies.push_back(engine_us);
-        if (engine_latencies.size() >= 50) {
-            std::sort(engine_latencies.begin(), engine_latencies.end());
-            long long p50 = engine_latencies[25];
-            long long p90 = engine_latencies[45];
-            long long p99 = engine_latencies[49];
-            long long max_lat = engine_latencies.back();
-            get_perf_file() << "Engine latency percentiles: p50=" << p50 << "us, p90=" << p90 << "us, p99=" << p99 << "us, max=" << max_lat << "us" << std::endl;
-            engine_latencies.clear();
-        }
-    }
-
-    // Prepare response
-    bool accepted = (result == "accepted");
-    std::string message = accepted ? "Order accepted" : result;
-
-    size_t response_size = sizeof(BinaryOrderResponse) + order_id.size() + message.size();
-    std::vector<char> response(response_size);
-
-    BinaryOrderResponse* resp = reinterpret_cast<BinaryOrderResponse*>(response.data());
-    resp->message_length = htonl(response_size);
-    resp->type = MessageType::ORDER_RESPONSE;
-    resp->order_id_len = htonl(order_id.size());
-    resp->accepted = accepted ? 1 : 0;
-    resp->message_len = htonl(message.size());
-
-    // Copy strings
-    char* string_data = response.data() + sizeof(BinaryOrderResponse);
-    std::memcpy(string_data, order_id.data(), order_id.size());
-    string_data += order_id.size();
-    std::memcpy(string_data, message.data(), message.size());
-
-    sendResponse(response, should_measure ? total_start_cycles : 0);
 }
 
 void TCPConnection::sendResponse(const std::vector<char>& response, uint64_t start_cycles) {
@@ -315,9 +243,244 @@ void TCPConnection::handleError(const boost::system::error_code& error) {
     stop();
 }
 
+void TCPConnection::processLoginRequest(const std::vector<char>& data) {
+    if (data.size() < sizeof(BinaryLoginRequestBody)) {
+        std::cerr << "TCP Connection: Login message too small" << std::endl;
+        return;
+    }
+
+    const BinaryLoginRequestBody* request = reinterpret_cast<const BinaryLoginRequestBody*>(data.data());
+    uint32_t token_len = ntohl(request->token_len);
+    
+    if (data.size() < sizeof(BinaryLoginRequestBody) + token_len) {
+        std::cerr << "TCP Connection: Login message size mismatch" << std::endl;
+        return;
+    }
+
+    // Extract JWT token
+    std::string jwt_token(data.data() + sizeof(BinaryLoginRequestBody), token_len);
+    
+    std::cout << "TCP Connection: Processing login request for connection " << connection_id_ << std::endl;
+    
+    // Authenticate with AuthenticationManager
+    AuthResult auth_result = auth_manager_->authenticateConnection(connection_id_, jwt_token);
+    
+    bool success = (auth_result == AuthResult::SUCCESS);
+    std::string message;
+    
+    switch (auth_result) {
+        case AuthResult::SUCCESS:
+            message = "Login successful";
+            break;
+        case AuthResult::INVALID_TOKEN:
+            message = "Invalid or expired token";
+            break;
+        case AuthResult::REDIS_ERROR:
+            message = "Authentication service error";
+            break;
+        case AuthResult::USER_NOT_FOUND:
+            message = "User account not found";
+            break;
+        case AuthResult::ALREADY_AUTHENTICATED:
+            message = "Already authenticated";
+            success = true; // Treat as success
+            break;
+        default:
+            message = "Unknown authentication error";
+            break;
+    }
+    
+    // Prepare response
+    size_t response_size = sizeof(BinaryLoginResponse) + message.size();
+    std::vector<char> response(response_size);
+    
+    BinaryLoginResponse* resp = reinterpret_cast<BinaryLoginResponse*>(response.data());
+    resp->message_length = htonl(response_size);
+    resp->type = static_cast<uint8_t>(MessageType::LOGIN_RESPONSE);
+    resp->success = success ? 1 : 0;
+    resp->message_len = htonl(message.size());
+    
+    // Copy message
+    std::memcpy(response.data() + sizeof(BinaryLoginResponse), message.data(), message.size());
+    
+    sendResponse(response);
+    
+    if (!success) {
+        // Close connection on failed authentication
+        std::cerr << "TCP Connection: Authentication failed for connection " << connection_id_ << ": " << message << std::endl;
+        stop();
+    } else {
+        std::cout << "TCP Connection: Authentication successful for connection " << connection_id_ << std::endl;
+    }
+}
+
+void TCPConnection::processOrderRequest(const std::vector<char>& data) {
+    // Sample metrics every 1000 orders to minimize overhead
+    static std::atomic<uint64_t> metrics_counter{0};
+    uint64_t current_count = metrics_counter.fetch_add(1, std::memory_order_relaxed);
+    bool should_measure = (current_count % 1000 == 0);
+
+    uint64_t total_start_cycles = 0;
+    if (should_measure) {
+        total_start_cycles = __rdtsc();
+    }
+
+    if (data.size() < sizeof(BinaryOrderRequestBody)) {
+        std::cerr << "TCP Connection: Order message too small: " << data.size() 
+                  << " bytes, expected at least " << sizeof(BinaryOrderRequestBody) << std::endl;
+        return;
+    }
+
+    const BinaryOrderRequestBody* request = reinterpret_cast<const BinaryOrderRequestBody*>(data.data());
+
+    // Convert from network byte order
+    uint32_t order_id_len = ntohl(request->order_id_len);
+    uint32_t user_id_len = ntohl(request->user_id_len); 
+    uint32_t symbol_len = ntohl(request->symbol_len);
+    
+    // Validate string lengths
+    size_t expected_size = sizeof(BinaryOrderRequestBody) + order_id_len + user_id_len + symbol_len;
+    if (data.size() < expected_size) {
+        std::cerr << "TCP Connection: Order message size mismatch - got: " << data.size() 
+                  << ", expected: " << expected_size << std::endl;
+        return;
+    }
+
+    // Extract strings from variable-length data
+    size_t offset = sizeof(BinaryOrderRequestBody);
+    std::string order_id(data.data() + offset, order_id_len);
+    offset += order_id_len;
+
+    std::string received_user_id(data.data() + offset, user_id_len);
+    offset += user_id_len;
+
+    std::string symbol(data.data() + offset, symbol_len);
+
+    // Get authenticated user ID (this is the authoritative source)
+    UserId authenticated_user_id = auth_manager_->getUserId(connection_id_);
+    if (authenticated_user_id.empty()) {
+        std::cerr << "TCP Connection: No authenticated user for connection " << connection_id_ << std::endl;
+        return;
+    }
+
+    // Update last activity
+    auth_manager_->updateLastActivity(connection_id_);
+
+    // Convert price from network byte order to host byte order
+    uint64_t price_bits;
+    std::memcpy(&price_bits, &request->price, sizeof(double));
+    uint64_t host_price_bits = ntohll(price_bits);
+    double correct_price;
+    std::memcpy(&correct_price, &host_price_bits, sizeof(double));
+
+    int64_t quantity = static_cast<int64_t>(ntohll(request->quantity));
+    
+    // Check buying power using AuthenticationManager
+    if (request->side == 0) { // BUY order
+        double required_cash = quantity * correct_price;
+        if (!auth_manager_->checkBuyingPower(authenticated_user_id, required_cash)) {
+            std::string message = "Insufficient buying power";
+            
+            size_t response_size = sizeof(BinaryOrderResponse) + order_id.size() + message.size();
+            std::vector<char> response(response_size);
+
+            BinaryOrderResponse* resp = reinterpret_cast<BinaryOrderResponse*>(response.data());
+            resp->message_length = htonl(response_size);
+            resp->type = MessageType::ORDER_RESPONSE;
+            resp->order_id_len = htonl(order_id.size());
+            resp->accepted = 0;
+            resp->message_len = htonl(message.size());
+
+            // Copy strings
+            char* string_data = response.data() + sizeof(BinaryOrderResponse);
+            std::memcpy(string_data, order_id.data(), order_id.size());
+            string_data += order_id.size();
+            std::memcpy(string_data, message.data(), message.size());
+
+            sendResponse(response);
+            return;
+        }
+    }
+
+    // Convert to core Order (using authenticated user ID, not the one from message)
+    Order core_order{
+        order_id,
+        authenticated_user_id,  // Use authenticated user ID
+        symbol,
+        static_cast<int>(request->side),
+        static_cast<int>(request->order_type),
+        quantity,
+        correct_price,
+        static_cast<int64_t>(ntohll(request->timestamp_ms))
+    };
+
+    // Submit order with timing (only when sampling)
+    uint64_t engine_start_cycles = 0;
+    if (should_measure) {
+        engine_start_cycles = __rdtsc();
+    }
+    
+    std::string result = exchange_->submitOrder(symbol, core_order);
+    
+    long long engine_us = 0;
+    if (should_measure) {
+        uint64_t engine_end_cycles = __rdtsc();
+        uint64_t engine_cycles = engine_end_cycles - engine_start_cycles;
+        engine_us = engine_cycles * 1000000LL / get_cpu_freq_hz();
+        get_perf_file() << "Order execution time: " << engine_us << " microseconds for order " << order_id << std::endl;
+        
+        // Log slow orders
+        if (engine_us > 1000) {
+            get_perf_file() << "Slow order: " << order_id << " engine time " << engine_us << "us" << std::endl;
+        }
+        
+        // Collect latencies for percentiles
+        static std::vector<long long> engine_latencies;
+        engine_latencies.push_back(engine_us);
+        if (engine_latencies.size() >= 50) {
+            std::sort(engine_latencies.begin(), engine_latencies.end());
+            long long p50 = engine_latencies[25];
+            long long p90 = engine_latencies[45];
+            long long p99 = engine_latencies[49];
+            long long max_lat = engine_latencies.back();
+            get_perf_file() << "Engine latency percentiles: p50=" << p50 << "us, p90=" << p90 << "us, p99=" << p99 << "us, max=" << max_lat << "us" << std::endl;
+            engine_latencies.clear();
+        }
+    }
+
+    // Update account position if order was accepted
+    bool accepted = (result == "accepted");
+    if (accepted) {
+        // Update position in AuthenticationManager
+        long position_change = (request->side == 0) ? quantity : -quantity; // BUY = positive, SELL = negative
+        auth_manager_->updatePosition(authenticated_user_id, symbol, position_change, correct_price);
+    }
+
+    // Prepare response
+    std::string message = accepted ? "Order accepted" : result;
+
+    size_t response_size = sizeof(BinaryOrderResponse) + order_id.size() + message.size();
+    std::vector<char> response(response_size);
+
+    BinaryOrderResponse* resp = reinterpret_cast<BinaryOrderResponse*>(response.data());
+    resp->message_length = htonl(response_size);
+    resp->type = MessageType::ORDER_RESPONSE;
+    resp->order_id_len = htonl(order_id.size());
+    resp->accepted = accepted ? 1 : 0;
+    resp->message_len = htonl(message.size());
+
+    // Copy strings
+    char* string_data = response.data() + sizeof(BinaryOrderResponse);
+    std::memcpy(string_data, order_id.data(), order_id.size());
+    string_data += order_id.size();
+    std::memcpy(string_data, message.data(), message.size());
+
+    sendResponse(response, should_measure ? total_start_cycles : 0);
+}
+
 // TCPServer implementation
-TCPServer::TCPServer(const std::string& address, uint16_t port, StockExchange* exchange)
-    : acceptor_(io_context_), exchange_(exchange) {
+TCPServer::TCPServer(const std::string& address, uint16_t port, StockExchange* exchange, AuthenticationManager* auth_manager)
+    : acceptor_(io_context_), exchange_(exchange), auth_manager_(auth_manager) {
     boost::system::error_code ec;
     auto addr = boost::asio::ip::make_address(address, ec);
     if (ec) {
@@ -429,13 +592,13 @@ void TCPServer::acceptConnection() {
                          << socket.remote_endpoint().address().to_string() 
                          << ":" << socket.remote_endpoint().port() << std::endl;
                          
-                auto connection = std::make_shared<TCPConnection>(std::move(socket), exchange_);
+                auto connection = std::make_shared<TCPConnection>(std::move(socket), exchange_, auth_manager_);
                 connection->start();
 
                 // Store connection for cleanup
                 {
                     std::lock_guard<std::mutex> lock(connections_mutex_);
-                    connections_[std::to_string(reinterpret_cast<uintptr_t>(connection.get()))] = connection;
+                    connections_[std::to_string(connection->getConnectionId())] = connection;
                 }
             }
 

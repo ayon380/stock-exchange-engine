@@ -165,4 +165,5 @@ public:
     // Health check
     bool isHealthy() const;
     std::vector<std::string> getSymbols() const { return STOCK_SYMBOLS; }
+    DatabaseManager* getDatabaseManager() const { return db_manager_.get(); }
 };

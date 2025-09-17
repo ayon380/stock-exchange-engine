@@ -5,6 +5,8 @@
     "boost-system",
     "boost-thread",
     "boost-asio",
-    "boost-interprocess"
+    "boost-interprocess",
+    "abseil",
+    "redis-plus-plus"
   ]
 }

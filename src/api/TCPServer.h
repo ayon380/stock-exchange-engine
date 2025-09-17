@@ -13,13 +13,16 @@
 #include "../core_engine/StockExchange.h"
 #include "../core_engine/MemoryPool.h"
 #include "../core_engine/LockFreeQueue.h"
+#include "AuthenticationManager.h"
 
 // Binary protocol message types
 enum class MessageType : uint8_t {
-    SUBMIT_ORDER = 1,
-    ORDER_RESPONSE = 2,
-    HEARTBEAT = 3,
-    HEARTBEAT_ACK = 4
+    LOGIN_REQUEST = 1,
+    LOGIN_RESPONSE = 2,
+    SUBMIT_ORDER = 3,
+    ORDER_RESPONSE = 4,
+    HEARTBEAT = 5,
+    HEARTBEAT_ACK = 6
 };
 
 // Binary order request structure (packed for network efficiency)
@@ -72,7 +75,9 @@ private:
     std::array<char, 8192> buffer_;
     std::vector<char> message_buffer_;
     StockExchange* exchange_;
+    AuthenticationManager* auth_manager_;
     std::atomic<bool> connected_{true};
+    ConnectionId connection_id_;
 
     // For batched responses
     std::vector<std::vector<char>> pending_responses_;
@@ -86,16 +91,19 @@ private:
     static constexpr std::chrono::microseconds BATCH_TIMEOUT{100};
 
 public:
-    TCPConnection(boost::asio::ip::tcp::socket socket, StockExchange* exchange);
+    TCPConnection(boost::asio::ip::tcp::socket socket, StockExchange* exchange, AuthenticationManager* auth_manager);
     ~TCPConnection();
 
     void start();
     void stop();
+    ConnectionId getConnectionId() const { return connection_id_; }
 
 private:
     void readHeader();
     void readBody(size_t expected_length);
     void processMessage(const std::vector<char>& data);
+    void processLoginRequest(const std::vector<char>& data);
+    void processOrderRequest(const std::vector<char>& data);
     void sendResponse(const std::vector<char>& response, uint64_t start_cycles = 0);
     void handleError(const boost::system::error_code& error);
 };
@@ -108,6 +116,7 @@ private:
     std::vector<std::thread> worker_threads_;
     std::atomic<bool> running_{false};
     StockExchange* exchange_;
+    AuthenticationManager* auth_manager_;
 
     // Work guard to keep io_context alive
     std::unique_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> work_guard_;
@@ -115,6 +124,9 @@ private:
     // Connection management
     std::unordered_map<std::string, std::shared_ptr<TCPConnection>> connections_;
     std::mutex connections_mutex_;
+
+    // Connection ID counter
+    std::atomic<ConnectionId> next_connection_id_{1};
 
     // Batching configuration
     static constexpr size_t MAX_BATCH_SIZE = 64;
@@ -128,7 +140,7 @@ private:
     std::atomic<bool> batch_processor_running_{false};
 
 public:
-    TCPServer(const std::string& address, uint16_t port, StockExchange* exchange);
+    TCPServer(const std::string& address, uint16_t port, StockExchange* exchange, AuthenticationManager* auth_manager);
     ~TCPServer();
 
     void start();

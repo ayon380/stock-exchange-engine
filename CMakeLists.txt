@@ -13,6 +13,8 @@ find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 find_package(libpqxx CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread interprocess)
+find_package(absl CONFIG REQUIRED)
+find_package(redis++ CONFIG REQUIRED)
 
 # Find the gRPC plugin
 find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin PATHS ${CMAKE_CURRENT_SOURCE_DIR}/build/vcpkg_installed/x64-windows/tools/grpc)
@@ -46,6 +48,7 @@ add_executable(stock_engine
     src/api/GRPCServer.cpp
     src/api/TCPServer.cpp
     src/api/SharedMemoryQueue.cpp
+    src/api/AuthenticationManager.cpp
     src/core_engine/StockExchange.cpp
     src/core_engine/DatabaseManager.cpp
     src/core_engine/Stock.cpp
@@ -68,5 +71,5 @@ endif()
 target_include_directories(stock_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(stock_engine PRIVATE src)
 
-target_link_libraries(stock_engine PRIVATE gRPC::grpc++ protobuf::libprotobuf libpqxx::pqxx Boost::system Boost::thread Boost::interprocess)
+target_link_libraries(stock_engine PRIVATE gRPC::grpc++ protobuf::libprotobuf libpqxx::pqxx Boost::system Boost::thread Boost::interprocess absl::flat_hash_map absl::strings redis++::redis++)
 

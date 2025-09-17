@@ -52,6 +52,24 @@ public:
     bool saveOrder(const std::string& order_data);
     bool saveTrade(const std::string& trade_data);
     
+    // User account operations
+    struct UserAccount {
+        std::string user_id;
+        double cash;
+        long goog_position;
+        long aapl_position;
+        long tsla_position;
+        long msft_position;
+        long amzn_position;
+        double buying_power;
+        double day_trading_buying_power;
+        int day_trades_count;
+    };
+    
+    bool loadUserAccount(const std::string& user_id, UserAccount& account);
+    bool saveUserAccount(const UserAccount& account);
+    bool createUserAccount(const std::string& user_id, double initial_cash = 100000.0);
+    
     // Health check
     bool isConnected() const;
 };

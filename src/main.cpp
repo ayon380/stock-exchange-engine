@@ -1,6 +1,7 @@
 #include "api/GRPCServer.h"
 #include "api/TCPServer.h"
 #include "api/SharedMemoryQueue.h"
+#include "api/AuthenticationManager.h"
 #include <grpcpp/grpcpp.h>
 #include <iostream>
 #include <memory>
@@ -37,10 +38,22 @@ int main() {
     // Start the stock exchange engine
     service.start();
     
+    // Initialize Authentication Manager
+    std::string redis_host = "localhost";
+    int redis_port = 6379;
+    auto auth_manager = std::make_unique<AuthenticationManager>(redis_host, redis_port, service.getExchange()->getDatabaseManager());
+    
+    if (!auth_manager->initialize()) {
+        std::cerr << "Failed to initialize Authentication Manager" << std::endl;
+        return -1;
+    }
+    
+    std::cout << "Authentication Manager initialized successfully" << std::endl;
+    
     // Initialize TCP server for high-performance order submission
     std::string tcp_address("0.0.0.0");
     uint16_t tcp_port = 50052; // Different port from gRPC
-    TCPServer tcp_server(tcp_address, tcp_port, service.getExchange());
+    TCPServer tcp_server(tcp_address, tcp_port, service.getExchange(), auth_manager.get());
     
     // Initialize shared memory server for ultra-low latency local clients
     std::string shm_name("stock_exchange_orders");
