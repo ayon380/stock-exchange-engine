@@ -5,6 +5,10 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <winbase.h>
+#elif defined(__APPLE__)
+#include <mach/thread_policy.h>
+#include <mach/thread_act.h>
+#include <pthread.h>
 #else
 #include <pthread.h>
 #include <sched.h>
@@ -17,6 +21,11 @@ public:
 #ifdef _WIN32
         DWORD_PTR mask = 1ULL << cpu_core;
         return SetThreadAffinityMask(GetCurrentThread(), mask) != 0;
+#elif defined(__APPLE__)
+        // macOS implementation using thread affinity policy
+        thread_affinity_policy_data_t policy = {cpu_core};
+        mach_port_t mach_thread = pthread_mach_thread_np(pthread_self());
+        return thread_policy_set(mach_thread, THREAD_AFFINITY_POLICY, (thread_policy_t)&policy, THREAD_AFFINITY_POLICY_COUNT) == KERN_SUCCESS;
 #else
         cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
@@ -30,6 +39,11 @@ public:
 #ifdef _WIN32
         DWORD_PTR mask = 1ULL << cpu_core;
         return SetThreadAffinityMask(thread.native_handle(), mask) != 0;
+#elif defined(__APPLE__)
+        // macOS implementation using thread affinity policy
+        thread_affinity_policy_data_t policy = {cpu_core};
+        mach_port_t mach_thread = pthread_mach_thread_np(thread.native_handle());
+        return thread_policy_set(mach_thread, THREAD_AFFINITY_POLICY, (thread_policy_t)&policy, THREAD_AFFINITY_POLICY_COUNT) == KERN_SUCCESS;
 #else
         cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
@@ -60,6 +74,9 @@ public:
     static bool setHighPriority(std::thread& thread) {
 #ifdef _WIN32
         return SetThreadPriority(thread.native_handle(), THREAD_PRIORITY_TIME_CRITICAL) != 0;
+#elif defined(__APPLE__)
+        // macOS doesn't have the same priority system, return true for compatibility
+        return true;
 #else
         struct sched_param param;
         param.sched_priority = sched_get_priority_max(SCHED_FIFO);
@@ -71,6 +88,9 @@ public:
     static bool setCurrentThreadHighPriority() {
 #ifdef _WIN32
         return SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL) != 0;
+#elif defined(__APPLE__)
+        // macOS doesn't have the same priority system, return true for compatibility
+        return true;
 #else
         struct sched_param param;
         param.sched_priority = sched_get_priority_max(SCHED_FIFO);

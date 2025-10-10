@@ -17,7 +17,11 @@ find_package(absl CONFIG REQUIRED)
 find_package(redis++ CONFIG REQUIRED)
 
 # Find the gRPC plugin
-find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin PATHS ${CMAKE_CURRENT_SOURCE_DIR}/build/vcpkg_installed/x64-windows/tools/grpc)
+if(DEFINED VCPKG_TARGET_TRIPLET)
+    find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin PATHS ${CMAKE_CURRENT_SOURCE_DIR}/build/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/tools/grpc)
+else()
+    find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
+endif()
 
 # proto
 set(PROTO_FILE ${CMAKE_CURRENT_SOURCE_DIR}/src/api/StockService.proto)
@@ -71,5 +75,5 @@ endif()
 target_include_directories(stock_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(stock_engine PRIVATE src)
 
-target_link_libraries(stock_engine PRIVATE gRPC::grpc++ protobuf::libprotobuf libpqxx::pqxx Boost::system Boost::thread Boost::interprocess absl::flat_hash_map absl::strings redis++::redis++)
+target_link_libraries(stock_engine PRIVATE gRPC::grpc++ protobuf::libprotobuf libpqxx::pqxx Boost::system Boost::thread Boost::interprocess absl::flat_hash_map absl::strings redis++::redis++_static)
 

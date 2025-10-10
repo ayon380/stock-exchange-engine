@@ -9,18 +9,49 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
+#include <sstream>
 
 std::atomic<bool> shutdown_requested(false);
 
+#ifdef _WIN32
+#include <windows.h>
+BOOL WINAPI consoleCtrlHandler(DWORD dwCtrlType) {
+    if (dwCtrlType == CTRL_C_EVENT || dwCtrlType == CTRL_BREAK_EVENT || dwCtrlType == CTRL_CLOSE_EVENT) {
+        shutdown_requested.store(true);
+        return TRUE;
+    }
+    return FALSE;
+}
+#else
+#include <signal.h>
 void signalHandler(int signal) {
-    std::cout << "\nShutdown signal received (" << signal << "). Gracefully shutting down..." << std::endl;
     shutdown_requested.store(true);
 }
+#endif
 
 int main() {
     // Set up signal handlers for graceful shutdown
-    signal(SIGINT, signalHandler);
-    signal(SIGTERM, signalHandler);
+#ifdef _WIN32
+    if (!SetConsoleCtrlHandler(consoleCtrlHandler, TRUE)) {
+        std::cerr << "Failed to set console control handler" << std::endl;
+        return -1;
+    }
+#else
+    struct sigaction sa;
+    sa.sa_handler = signalHandler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    
+    if (sigaction(SIGINT, &sa, nullptr) == -1) {
+        std::cerr << "Failed to set SIGINT handler" << std::endl;
+        return -1;
+    }
+    
+    if (sigaction(SIGTERM, &sa, nullptr) == -1) {
+        std::cerr << "Failed to set SIGTERM handler" << std::endl;
+        return -1;
+    }
+#endif
     
     std::string server_address("0.0.0.0:50051");
     
@@ -77,7 +108,15 @@ int main() {
     std::cout << "  • High-performance TCP binary protocol for order submission" << std::endl;
     std::cout << "  • Ultra-low latency shared memory for local clients" << std::endl;
     std::cout << "  • gRPC streaming for market data, UI, and demo purposes" << std::endl;
-    std::cout << "  • 8 Stock symbols (AAPL, GOOGL, MSFT, TSLA, AMZN, META, NVDA, NFLX)" << std::endl;
+    auto symbols = service.getExchange()->getSymbols();
+    std::ostringstream symbol_stream;
+    for (size_t i = 0; i < symbols.size(); ++i) {
+        symbol_stream << symbols[i];
+        if (i + 1 < symbols.size()) {
+            symbol_stream << ", ";
+        }
+    }
+    std::cout << "  • " << symbols.size() << " Stock symbols (" << symbol_stream.str() << ")" << std::endl;
     std::cout << "  • Individual threads per stock" << std::endl;
     std::cout << "  • Real-time streaming market data" << std::endl;
     std::cout << "  • Market Index (TECH500) - like S&P 500/Sensex" << std::endl;
@@ -101,16 +140,22 @@ int main() {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     
+    std::cout << "\nShutdown signal received. Gracefully shutting down..." << std::endl;
+    std::cout << "Stopping TCP server..." << std::endl;
+    
     std::cout << "Initiating graceful shutdown..." << std::endl;
     
     // Stop TCP server first
     tcp_server.stop();
+    std::cout << "TCP server stopped" << std::endl;
     
     // Stop shared memory server
     shm_server.stop();
+    std::cout << "Shared memory server stopped" << std::endl;
     
     // Stop the service first
     service.stop();
+    std::cout << "gRPC service stopped" << std::endl;
     
     // Then shutdown the gRPC server
     server->Shutdown();

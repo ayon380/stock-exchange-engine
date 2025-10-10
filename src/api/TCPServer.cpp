@@ -4,7 +4,11 @@
 #include <chrono>
 #include <condition_variable>
 #include <boost/bind/bind.hpp>
+#ifdef _WIN32
 #include <intrin.h>
+#elif defined(__x86_64__) || defined(_M_X64)
+#include <x86intrin.h>
+#endif
 #include <thread>
 #include <algorithm>
 #include <fstream>
@@ -14,15 +18,30 @@
 static uint64_t get_cpu_freq_hz() {
     static uint64_t freq = 0;
     if (freq == 0) {
+#if defined(__x86_64__) || defined(_M_X64) || defined(_WIN32)
         auto chrono_start = std::chrono::high_resolution_clock::now();
-        uint64_t rdtsc_start = __rdtsc();
+        uint64_t rdtsc_start = get_cycles();
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        uint64_t rdtsc_end = __rdtsc();
+        uint64_t rdtsc_end = get_cycles();
         auto chrono_end = std::chrono::high_resolution_clock::now();
         auto time_us = std::chrono::duration_cast<std::chrono::microseconds>(chrono_end - chrono_start).count();
         freq = (rdtsc_end - rdtsc_start) * 1000000ULL / time_us;
+#else
+        // For non-x86 platforms, use a reasonable default (3 GHz)
+        freq = 3000000000ULL;
+#endif
     }
     return freq;
+}
+
+// Cross-platform cycle counter
+static inline uint64_t get_cycles() {
+#if defined(__x86_64__) || defined(_M_X64) || defined(_WIN32)
+    return __rdtsc();
+#else
+    // For non-x86 platforms, use high_resolution_clock as cycle approximation
+    return std::chrono::high_resolution_clock::now().time_since_epoch().count();
+#endif
 }
 
 // Get performance log file
@@ -32,6 +51,7 @@ static std::ofstream& get_perf_file() {
 }
 
 // Helper function for 64-bit network to host byte order conversion
+#ifndef ntohll
 uint64_t ntohll(uint64_t value) {
 #if (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__) || defined(_WIN32)
     uint32_t high = ntohl(static_cast<uint32_t>(value >> 32));
@@ -41,6 +61,7 @@ uint64_t ntohll(uint64_t value) {
     return value;
 #endif
 }
+#endif
 
 // Helper function to convert uint64 bits (network order) to double (host order)
 double uint64_to_double(uint64_t value) {
@@ -208,7 +229,7 @@ void TCPConnection::sendResponse(const std::vector<char>& response, uint64_t sta
             if (error) {
                 handleError(error);
             } else if (start_cycles != 0) {
-                uint64_t end_cycles = __rdtsc();
+                uint64_t end_cycles = get_cycles();
                 uint64_t total_cycles = end_cycles - start_cycles;
                 long long total_us = total_cycles * 1000000LL / get_cpu_freq_hz();
                 get_perf_file() << "Total trip time: " << total_us << " microseconds" << std::endl;
@@ -322,7 +343,7 @@ void TCPConnection::processOrderRequest(const std::vector<char>& data) {
 
     uint64_t total_start_cycles = 0;
     if (should_measure) {
-        total_start_cycles = __rdtsc();
+        total_start_cycles = get_cycles();
     }
 
     if (data.size() < sizeof(BinaryOrderRequestBody)) {
@@ -417,14 +438,14 @@ void TCPConnection::processOrderRequest(const std::vector<char>& data) {
     // Submit order with timing (only when sampling)
     uint64_t engine_start_cycles = 0;
     if (should_measure) {
-        engine_start_cycles = __rdtsc();
+        engine_start_cycles = get_cycles();
     }
     
     std::string result = exchange_->submitOrder(symbol, core_order);
     
     long long engine_us = 0;
     if (should_measure) {
-        uint64_t engine_end_cycles = __rdtsc();
+        uint64_t engine_end_cycles = get_cycles();
         uint64_t engine_cycles = engine_end_cycles - engine_start_cycles;
         engine_us = engine_cycles * 1000000LL / get_cpu_freq_hz();
         get_perf_file() << "Order execution time: " << engine_us << " microseconds for order " << order_id << std::endl;

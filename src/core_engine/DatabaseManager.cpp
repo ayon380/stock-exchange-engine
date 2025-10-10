@@ -124,6 +124,7 @@ void DatabaseManager::startBackgroundSync() {
 
 void DatabaseManager::stopBackgroundSync() {
     running_.store(false);
+    sync_cv_.notify_all();
     if (sync_thread_.joinable()) {
         sync_thread_.join();
     }
@@ -132,7 +133,10 @@ void DatabaseManager::stopBackgroundSync() {
 
 void DatabaseManager::syncWorker() {
     while (running_.load()) {
-        std::this_thread::sleep_for(sync_interval_);
+        {
+            std::unique_lock<std::mutex> lock(sync_mutex_);
+            sync_cv_.wait_for(lock, sync_interval_, [this]() { return !running_.load(); });
+        }
         
         if (!running_.load()) break;
         

@@ -24,6 +24,8 @@ private:
     std::unique_ptr<pqxx::connection> conn_;
     std::atomic<bool> running_;
     std::thread sync_thread_;
+    std::mutex sync_mutex_;
+    std::condition_variable sync_cv_;
     
     std::string connection_string_;
     std::chrono::seconds sync_interval_;

@@ -106,7 +106,11 @@ void StockExchange::stop() {
         return;
     }
     
+    std::cout << "Stopping StockExchange..." << std::endl;
     running_.store(false);
+    
+    // Wake up the database sync thread
+    db_sync_cv_.notify_all();
     
     // Stop all stock threads
     for (auto& [symbol, stock] : stocks_) {
@@ -127,7 +131,7 @@ void StockExchange::stop() {
         db_sync_thread_.join();
     }
     
-    // Final database save
+    std::cout << "StockExchange stopped" << std::endl;
     if (db_manager_ && db_manager_->isConnected()) {
         saveToDatabase();
     }
@@ -256,7 +260,10 @@ void StockExchange::indexWorker() {
 
 void StockExchange::databaseSyncWorker() {
     while (running_.load()) {
-        std::this_thread::sleep_for(std::chrono::seconds(30)); // Sync every 30 seconds
+        {
+            std::unique_lock<std::mutex> lock(db_sync_mutex_);
+            db_sync_cv_.wait_for(lock, std::chrono::seconds(30), [this]() { return !running_.load(); });
+        }
         
         if (!running_.load()) break;
         

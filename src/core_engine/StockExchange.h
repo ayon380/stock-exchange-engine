@@ -88,9 +88,9 @@ using AllStocksCallback = std::function<void(const std::vector<StockSnapshot>&)>
 
 class StockExchange {
 private:
-    // Stock symbols to initialize (reduced to 4 stocks for better CPU usage)
+    // Stock symbols to initialize (temporarily reduced for performance tuning)
     const std::vector<std::string> STOCK_SYMBOLS = {
-        "AAPL", "GOOGL", "MSFT", "TSLA"
+        "AAPL", "MSFT"
     };
     
     std::map<std::string, std::unique_ptr<Stock>> stocks_;
@@ -100,6 +100,8 @@ private:
     std::atomic<bool> running_;
     std::thread index_thread_;
     std::thread db_sync_thread_;
+    std::mutex db_sync_mutex_;
+    std::condition_variable db_sync_cv_;
     
     // Market data streaming
     mutable std::mutex subscribers_mutex_;

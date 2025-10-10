@@ -2,6 +2,11 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <fstream>
+#include <vector>
+#include <algorithm>
+#include <atomic>
+#include <iomanip>
 
 GRPCServer::GRPCServer(const std::string& db_connection_string)
     : exchange_(std::make_unique<StockExchange>(db_connection_string)) {}
@@ -11,6 +16,12 @@ GRPCServer::~GRPCServer() { stop(); }
 bool GRPCServer::initialize() { return exchange_ ? exchange_->initialize() : false; }
 void GRPCServer::start() { if (exchange_) exchange_->start(); }
 void GRPCServer::stop() { if (exchange_) exchange_->stop(); }
+
+// Get performance log file
+static std::ofstream& get_perf_file() {
+    static std::ofstream perf_file("performance.txt", std::ios::app);
+    return perf_file;
+}
 
 void GRPCServer::convertToCoreOrder(const stock::OrderRequest& req, Order& order) {
     order = Order{
@@ -67,6 +78,8 @@ grpc::Status GRPCServer::SubmitOrder(grpc::ServerContext* context,
                                      const stock::OrderRequest* request,
                                      stock::OrderResponse* response) {
     (void)context;
+    auto grpc_start = std::chrono::high_resolution_clock::now();
+
     std::cout << "Received order: " << request->order_id()
               << " type: " << request->type()
               << " qty: " << request->quantity()
@@ -76,14 +89,96 @@ grpc::Status GRPCServer::SubmitOrder(grpc::ServerContext* context,
     response->set_accepted(true);
     response->set_message("Order received successfully");
 
+    auto conversion_start = std::chrono::high_resolution_clock::now();
+    Order core_order;
+    convertToCoreOrder(*request, core_order);
+    auto conversion_end = std::chrono::high_resolution_clock::now();
+
+    auto submit_start = std::chrono::high_resolution_clock::now();
     if (exchange_) {
-        Order core_order;
-        convertToCoreOrder(*request, core_order);
         auto result = exchange_->submitOrder(request->symbol(), core_order);
         if (result != "accepted") {
             response->set_accepted(false);
             response->set_message(result);
         }
+    }
+    auto submit_end = std::chrono::high_resolution_clock::now();
+
+    // Measure and log detailed latencies
+    auto grpc_end = std::chrono::high_resolution_clock::now();
+    auto total_duration = std::chrono::duration_cast<std::chrono::microseconds>(grpc_end - grpc_start);
+    auto conversion_duration = std::chrono::duration_cast<std::chrono::microseconds>(conversion_end - conversion_start);
+    auto submit_duration = std::chrono::duration_cast<std::chrono::microseconds>(submit_end - submit_start);
+
+    long long total_us = total_duration.count();
+    long long conversion_us = conversion_duration.count();
+    long long submit_us = submit_duration.count();
+
+    // Thread-safe metrics collection
+    static std::mutex metrics_mutex;
+    static std::vector<long long> total_latencies;
+    static std::vector<long long> conversion_latencies;
+    static std::vector<long long> submit_latencies;
+    static std::atomic<uint64_t> order_counter{0};
+    static long long min_latency = LLONG_MAX;
+    static long long max_latency = 0;
+    static long long total_sum = 0;
+
+    uint64_t current_count = order_counter.fetch_add(1, std::memory_order_relaxed) + 1;
+
+    {
+        std::lock_guard<std::mutex> lock(metrics_mutex);
+        total_latencies.push_back(total_us);
+        conversion_latencies.push_back(conversion_us);
+        submit_latencies.push_back(submit_us);
+
+        min_latency = std::min(min_latency, total_us);
+        max_latency = std::max(max_latency, total_us);
+        total_sum += total_us;
+    }
+
+    // Log detailed metrics every 1000 orders
+    if (current_count % 1000 == 0) {
+        std::lock_guard<std::mutex> lock(metrics_mutex);
+
+        // Calculate percentiles for total latency
+        std::vector<long long> sorted_total = total_latencies;
+        std::sort(sorted_total.begin(), sorted_total.end());
+        size_t n = sorted_total.size();
+        long long p50_total = sorted_total[n * 50 / 100];
+        long long p90_total = sorted_total[n * 90 / 100];
+        long long p99_total = sorted_total[n * 99 / 100];
+        double avg_total = static_cast<double>(total_sum) / current_count;
+
+        // Calculate percentiles for conversion latency
+        std::vector<long long> sorted_conversion = conversion_latencies;
+        std::sort(sorted_conversion.begin(), sorted_conversion.end());
+        long long p50_conv = sorted_conversion[n * 50 / 100];
+        long long p90_conv = sorted_conversion[n * 90 / 100];
+        long long p99_conv = sorted_conversion[n * 99 / 100];
+
+        // Calculate percentiles for submit latency
+        std::vector<long long> sorted_submit = submit_latencies;
+        std::sort(sorted_submit.begin(), sorted_submit.end());
+        long long p50_submit = sorted_submit[n * 50 / 100];
+        long long p90_submit = sorted_submit[n * 90 / 100];
+        long long p99_submit = sorted_submit[n * 99 / 100];
+
+        get_perf_file() << "=== PERFORMANCE METRICS (Orders: " << current_count << ") ===" << std::endl;
+        get_perf_file() << "Total Latency - Min: " << min_latency << "us, Max: " << max_latency
+                       << "us, Avg: " << (total_sum / current_count)
+                       << "us, P50: " << p50_total << "us, P90: " << p90_total << "us, P99: " << p99_total << "us" << std::endl;
+        get_perf_file() << "Conversion Latency - P50: " << p50_conv << "us, P90: " << p90_conv << "us, P99: " << p99_conv << "us" << std::endl;
+        get_perf_file() << "Submit Latency - P50: " << p50_submit << "us, P90: " << p90_submit << "us, P99: " << p99_submit << "us" << std::endl;
+        get_perf_file() << "==================================================" << std::endl;
+
+        // Reset for next 1000 orders
+        total_latencies.clear();
+        conversion_latencies.clear();
+        submit_latencies.clear();
+        min_latency = LLONG_MAX;
+        max_latency = 0;
+        total_sum = 0;
     }
 
     return grpc::Status::OK;

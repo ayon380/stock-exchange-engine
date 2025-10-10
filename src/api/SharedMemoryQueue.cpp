@@ -256,8 +256,8 @@ void SharedMemoryOrderServer::processOrders() {
     std::vector<char> buffer(1024); // 1KB buffer
 
     while (running_.load()) {
-        size_t message_size;
-        if (queue_->dequeue(buffer.data(), message_size)) {
+        size_t message_size = 0;
+        if (queue_->try_dequeue(buffer.data(), message_size)) {
             if (message_size >= sizeof(SharedOrderMessage)) {
                 SharedOrderMessage* order_msg = reinterpret_cast<SharedOrderMessage*>(buffer.data());
 
@@ -287,8 +287,11 @@ void SharedMemoryOrderServer::processOrders() {
                 exchange_->submitOrder(symbol, core_order);
             }
         } else {
-            // No message, yield CPU
-            std::this_thread::yield();
+            if (!running_.load()) {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
     }
+
 }
