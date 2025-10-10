@@ -292,14 +292,14 @@ bool DatabaseManager::loadUserAccount(const std::string& user_id, UserAccount& a
         
         auto row = result[0];
         account.user_id = row["user_id"].as<std::string>();
-        account.cash = row["cash"].as<double>();
+        account.cash = UserAccount::fromDouble(row["cash"].as<double>());
         account.goog_position = row["goog_position"].as<long>();
         account.aapl_position = row["aapl_position"].as<long>();
         account.tsla_position = row["tsla_position"].as<long>();
         account.msft_position = row["msft_position"].as<long>();
         account.amzn_position = row["amzn_position"].as<long>();
-        account.buying_power = row["buying_power"].as<double>();
-        account.day_trading_buying_power = row["day_trading_buying_power"].as<double>();
+        account.buying_power = static_cast<CashAmount>(row["buying_power"].as<double>() * 100.0 + 0.5);
+        account.day_trading_buying_power = static_cast<CashAmount>(row["day_trading_buying_power"].as<double>() * 100.0 + 0.5);
         account.day_trades_count = row["day_trades_count"].as<int>();
         
         txn.commit();
@@ -340,7 +340,7 @@ bool DatabaseManager::saveUserAccount(const UserAccount& account) {
     }
 }
 
-bool DatabaseManager::createUserAccount(const std::string& user_id, double initial_cash) {
+bool DatabaseManager::createUserAccount(const std::string& user_id, CashAmount initial_cash) {
     if (!conn_ || !conn_->is_open()) {
         std::cerr << "Database not connected" << std::endl;
         return false;

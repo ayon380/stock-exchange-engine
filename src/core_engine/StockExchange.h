@@ -11,28 +11,38 @@
 #include <condition_variable>
 #include <functional>
 
+// Fixed-point arithmetic types (imported from Stock.h)
+using Price = int64_t;
+using CashAmount = int64_t;
+
 // Keep the old IndexEntry for backward compatibility
 struct IndexEntry {
     std::string symbol;
-    double last_price;
-    double change_pct;
+    Price last_price;
+    double change_pct;  // Keep as double for percentage
     int64_t volume;
     
-    IndexEntry() : symbol(""), last_price(0.0), change_pct(0.0), volume(0) {}
-    IndexEntry(const std::string& sym, double price, double change, int64_t vol)
+    IndexEntry() : symbol(""), last_price(0), change_pct(0.0), volume(0) {}
+    IndexEntry(const std::string& sym, Price price, double change, int64_t vol)
         : symbol(sym), last_price(price), change_pct(change), volume(vol) {}
+
+    // Helper for conversion
+    double priceToDouble() const { return static_cast<double>(last_price) / 100.0; }
 };
 
 struct IndexConstituent {
     std::string symbol;
-    double last_price;
+    Price last_price;
     double weight;        // Weight in index calculation (0.0 to 1.0)
     double contribution;  // Points contributed to index
     double change_percent;
     
-    IndexConstituent() : symbol(""), last_price(0.0), weight(0.0), contribution(0.0), change_percent(0.0) {}
-    IndexConstituent(const std::string& sym, double price, double w, double contrib, double change)
+    IndexConstituent() : symbol(""), last_price(0), weight(0.0), contribution(0.0), change_percent(0.0) {}
+    IndexConstituent(const std::string& sym, Price price, double w, double contrib, double change)
         : symbol(sym), last_price(price), weight(w), contribution(contrib), change_percent(change) {}
+
+    // Helper for conversion
+    double priceToDouble() const { return static_cast<double>(last_price) / 100.0; }
 };
 
 struct MarketIndex {
@@ -53,31 +63,42 @@ struct MarketIndex {
 
 struct StockSnapshot {
     std::string symbol;
-    double last_price;
-    double change_points;
+    Price last_price;
+    Price change_points;
     double change_percent;
-    double day_high;
-    double day_low;
-    double day_open;
+    Price day_high;
+    Price day_low;
+    Price day_open;
     int64_t volume;
-    double vwap;
+    Price vwap;
     std::vector<PriceLevel> top_bids;
     std::vector<PriceLevel> top_asks;
     
-    StockSnapshot() : symbol(""), last_price(0.0), change_points(0.0), 
-                     change_percent(0.0), day_high(0.0), day_low(0.0), 
-                     day_open(0.0), volume(0), vwap(0.0) {}
+    StockSnapshot() : symbol(""), last_price(0), change_points(0), 
+                     change_percent(0.0), day_high(0), day_low(0), 
+                     day_open(0), volume(0), vwap(0) {}
+
+    // Helper functions for conversion
+    double lastPriceToDouble() const { return static_cast<double>(last_price) / 100.0; }
+    double changePointsToDouble() const { return static_cast<double>(change_points) / 100.0; }
+    double dayHighToDouble() const { return static_cast<double>(day_high) / 100.0; }
+    double dayLowToDouble() const { return static_cast<double>(day_low) / 100.0; }
+    double dayOpenToDouble() const { return static_cast<double>(day_open) / 100.0; }
+    double vwapToDouble() const { return static_cast<double>(vwap) / 100.0; }
 };
 
 struct MarketDataUpdate {
     std::string symbol;
-    double last_price;
+    Price last_price;
     int64_t last_qty;
     std::vector<PriceLevel> top_bids;
     std::vector<PriceLevel> top_asks;
     int64_t timestamp_ms;
     
-    MarketDataUpdate() : symbol(""), last_price(0.0), last_qty(0), timestamp_ms(0) {}
+    MarketDataUpdate() : symbol(""), last_price(0), last_qty(0), timestamp_ms(0) {}
+
+    // Helper function for conversion
+    double priceToDouble() const { return static_cast<double>(last_price) / 100.0; }
 };
 
 // Callback types for streaming

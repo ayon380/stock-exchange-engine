@@ -398,7 +398,7 @@ void TCPConnection::processOrderRequest(const std::vector<char>& data) {
     
     // Check buying power using AuthenticationManager
     if (request->side == 0) { // BUY order
-        double required_cash = quantity * correct_price;
+        CashAmount required_cash = quantity * static_cast<CashAmount>(correct_price * 100.0 + 0.5);
         if (!auth_manager_->checkBuyingPower(authenticated_user_id, required_cash)) {
             std::string message = "Insufficient buying power";
             
@@ -431,7 +431,7 @@ void TCPConnection::processOrderRequest(const std::vector<char>& data) {
         static_cast<int>(request->side),
         static_cast<int>(request->order_type),
         quantity,
-        correct_price,
+        static_cast<Price>(correct_price * 100.0 + 0.5), // Convert double to Price
         static_cast<int64_t>(ntohll(request->timestamp_ms))
     };
 
@@ -474,7 +474,7 @@ void TCPConnection::processOrderRequest(const std::vector<char>& data) {
     if (accepted) {
         // Update position in AuthenticationManager
         long position_change = (request->side == 0) ? quantity : -quantity; // BUY = positive, SELL = negative
-        auth_manager_->updatePosition(authenticated_user_id, symbol, position_change, correct_price);
+        auth_manager_->updatePosition(authenticated_user_id, symbol, position_change, static_cast<Price>(correct_price * 100.0 + 0.5));
     }
 
     // Prepare response

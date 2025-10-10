@@ -123,7 +123,7 @@ bool AuthenticationManager::loadAccountFromDatabase(const UserId& user_id) {
             return true;
         } else {
             // Create new account
-            double initial_cash = 100000.0; // Default starting cash
+            CashAmount initial_cash = 10000000; // $100,000.00 in fixed-point (100,000 * 100)
             if (!db_manager_->createUserAccount(user_id, initial_cash)) {
                 std::cerr << "Failed to create new user account in database" << std::endl;
                 return false;
@@ -177,7 +177,7 @@ void AuthenticationManager::cleanupInactiveSessions(std::chrono::minutes timeout
     }
 }
 
-bool AuthenticationManager::checkBuyingPower(const UserId& user_id, double required_cash) {
+bool AuthenticationManager::checkBuyingPower(const UserId& user_id, CashAmount required_cash) {
     auto account = getAccount(user_id);
     if (!account) {
         return false;
@@ -186,7 +186,7 @@ bool AuthenticationManager::checkBuyingPower(const UserId& user_id, double requi
     return account->buying_power.load() >= required_cash;
 }
 
-bool AuthenticationManager::updatePosition(const UserId& user_id, const std::string& symbol, long quantity_change, double price) {
+bool AuthenticationManager::updatePosition(const UserId& user_id, const std::string& symbol, long quantity_change, Price price) {
     auto account = getAccount(user_id);
     if (!account) {
         return false;
@@ -208,9 +208,9 @@ bool AuthenticationManager::updatePosition(const UserId& user_id, const std::str
         return false;
     }
     
-    // Update cash (subtract for buys, add for sells)
-    double cash_change = -quantity_change * price;
-    double old_cash = account->cash.load();
+    // Update cash (subtract for buys, add for sells) - integer arithmetic
+    CashAmount cash_change = -quantity_change * price;
+    CashAmount old_cash = account->cash.load();
     account->cash.store(old_cash + cash_change);
     
     // Update buying power (simplified calculation)

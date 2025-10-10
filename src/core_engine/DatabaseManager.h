@@ -7,16 +7,25 @@
 #include <atomic>
 #include <chrono>
 
+// Fixed-point arithmetic types
+using Price = int64_t;
+using CashAmount = int64_t;
+
 struct StockData {
     std::string symbol;
-    double last_price;
-    double open_price;
+    Price last_price;
+    Price open_price;
     int64_t volume;
     int64_t timestamp_ms;
     
-    StockData() : symbol(""), last_price(0.0), open_price(0.0), volume(0), timestamp_ms(0) {}
-    StockData(const std::string& sym, double last, double open, int64_t vol, int64_t ts)
+    StockData() : symbol(""), last_price(0), open_price(0), volume(0), timestamp_ms(0) {}
+    StockData(const std::string& sym, Price last, Price open, int64_t vol, int64_t ts)
         : symbol(sym), last_price(last), open_price(open), volume(vol), timestamp_ms(ts) {}
+
+    // Helper functions for conversion
+    static Price fromDouble(double dollars) { return static_cast<Price>(dollars * 100.0 + 0.5); }
+    double lastPriceToDouble() const { return static_cast<double>(last_price) / 100.0; }
+    double openPriceToDouble() const { return static_cast<double>(open_price) / 100.0; }
 };
 
 class DatabaseManager {
@@ -57,20 +66,25 @@ public:
     // User account operations
     struct UserAccount {
         std::string user_id;
-        double cash;
+        CashAmount cash;
         long goog_position;
         long aapl_position;
         long tsla_position;
         long msft_position;
         long amzn_position;
-        double buying_power;
-        double day_trading_buying_power;
+        CashAmount buying_power;
+        CashAmount day_trading_buying_power;
         int day_trades_count;
+
+        // Helper functions for conversion
+        static CashAmount fromDouble(double dollars) { return static_cast<CashAmount>(dollars * 100.0 + 0.5); }
+        double cashToDouble() const { return static_cast<double>(cash) / 100.0; }
+        double buyingPowerToDouble() const { return static_cast<double>(buying_power) / 100.0; }
     };
     
     bool loadUserAccount(const std::string& user_id, UserAccount& account);
     bool saveUserAccount(const UserAccount& account);
-    bool createUserAccount(const std::string& user_id, double initial_cash = 100000.0);
+    bool createUserAccount(const std::string& user_id, CashAmount initial_cash = 10000000); // $100,000.00 in fixed-point
     
     // Health check
     bool isConnected() const;

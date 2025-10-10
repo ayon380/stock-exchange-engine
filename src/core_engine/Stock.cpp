@@ -325,7 +325,7 @@ void Stock::removeOrderFromBook(Order* order) {
     order->remaining_qty = 0;
 }
 
-PriceLevelNode* Stock::findOrCreatePriceLevel(double price, bool is_buy) {
+PriceLevelNode* Stock::findOrCreatePriceLevel(Price price, bool is_buy) {
     if (is_buy) {
         // Find insertion point in bid side (descending order)
         if (!best_bid_ || price > best_bid_->price) {

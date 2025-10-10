@@ -31,7 +31,7 @@ void GRPCServer::convertToCoreOrder(const stock::OrderRequest& req, Order& order
         static_cast<int>(req.side()),
         static_cast<int>(req.type()),
         static_cast<int64_t>(req.quantity()),
-        req.price(),
+        static_cast<Price>(req.price() * 100.0 + 0.5), // Convert double to Price
         static_cast<int64_t>(req.timestamp_ms())
     };
 }

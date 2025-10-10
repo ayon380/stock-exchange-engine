@@ -10,12 +10,20 @@
 #include "MemoryPool.h"
 #include "CPUAffinity.h"
 
+// Fixed-point arithmetic: prices stored as 1/100th of currency unit
+// $123.45 becomes 12345 (integer)
+using Price = int64_t;
+using CashAmount = int64_t;
+
 struct PriceLevel {
-    double price;
+    Price price;
     int64_t quantity;
     
-    PriceLevel() : price(0.0), quantity(0) {}
-    PriceLevel(double p, int64_t q) : price(p), quantity(q) {}
+    PriceLevel() : price(0), quantity(0) {}
+    PriceLevel(Price p, int64_t q) : price(p), quantity(q) {}
+
+    // Helper function for conversion
+    double priceToDouble() const { return static_cast<double>(price) / 100.0; }
 };
 
 struct Order {
@@ -26,32 +34,40 @@ struct Order {
     int type;  // 0=MARKET, 1=LIMIT, 2=IOC, 3=FOK
     int64_t quantity;
     int64_t remaining_qty;
-    double price;
+    Price price;  // Fixed-point: multiply by 10000 for dollars
     int64_t timestamp_ms;
     std::string status; // "open", "filled", "cancelled", "partial"
     Order* next_at_price; // For linking orders at same price level
     
     Order() = default;
     Order(const std::string& id, const std::string& uid, const std::string& sym, 
-          int s, int t, int64_t qty, double p, int64_t ts)
+          int s, int t, int64_t qty, Price p, int64_t ts)
         : order_id(id), user_id(uid), symbol(sym), side(s), type(t), 
           quantity(qty), remaining_qty(qty), price(p), timestamp_ms(ts), 
           status("open"), next_at_price(nullptr) {}
+
+    // Helper functions for conversion
+    static Price fromDouble(double dollars) { return static_cast<Price>(dollars * 100.0 + 0.5); }
+    double toDouble() const { return static_cast<double>(price) / 100.0; }
 };
 
 struct Trade {
     std::string buy_order_id;
     std::string sell_order_id;
     std::string symbol;
-    double price;
+    Price price;
     int64_t quantity;
     int64_t timestamp_ms;
     
     Trade() = default;
     Trade(const std::string& buy_id, const std::string& sell_id, const std::string& sym, 
-          double p, int64_t qty, int64_t ts)
+          Price p, int64_t qty, int64_t ts)
         : buy_order_id(buy_id), sell_order_id(sell_id), symbol(sym), 
           price(p), quantity(qty), timestamp_ms(ts) {}
+
+    // Helper functions for conversion
+    static Price fromDouble(double dollars) { return static_cast<Price>(dollars * 100.0 + 0.5); }
+    double toDouble() const { return static_cast<double>(price) / 100.0; }
 };
 
 // Messages for lock-free communication
@@ -87,13 +103,13 @@ struct MarketDataMessage {
 
 // Fast order book using price-time priority with linked lists
 struct PriceLevelNode {
-    double price;
+    Price price;
     int64_t total_quantity;
     Order* first_order;
     Order* last_order;
     PriceLevelNode* next_level;
     
-    PriceLevelNode(double p) : price(p), total_quantity(0), first_order(nullptr), 
+    PriceLevelNode(Price p) : price(p), total_quantity(0), first_order(nullptr), 
                               last_order(nullptr), next_level(nullptr) {}
     
     void addOrder(Order* order) {
@@ -173,7 +189,7 @@ private:
     // Order book management (lockless, single thread)
     void addOrderToBook(Order* order);
     void removeOrderFromBook(Order* order);
-    PriceLevelNode* findOrCreatePriceLevel(double price, bool is_buy);
+    PriceLevelNode* findOrCreatePriceLevel(Price price, bool is_buy);
     
 public:
     explicit Stock(const std::string& symbol, double initial_price = 100.0, 

@@ -14,9 +14,12 @@
 using UserId = std::string;
 using ConnectionId = int; // Socket file descriptor or connection identifier
 
+// Fixed-point arithmetic for financial calculations
+using CashAmount = int64_t;
+
 // Represents a user's financial state in memory
 struct Account {
-    std::atomic<double> cash;
+    std::atomic<CashAmount> cash;
     std::atomic<long> goog_position;
     std::atomic<long> aapl_position;
     std::atomic<long> tsla_position;
@@ -25,12 +28,12 @@ struct Account {
     // Add more positions as needed
     
     // Risk metrics
-    std::atomic<double> buying_power;
-    std::atomic<double> day_trading_buying_power;
+    std::atomic<CashAmount> buying_power;
+    std::atomic<CashAmount> day_trading_buying_power;
     std::atomic<int> day_trades_count;
     
     // Constructor to initialize atomic values
-    Account(double initial_cash = 0.0) 
+    Account(CashAmount initial_cash = 0) 
         : cash(initial_cash)
         , goog_position(0)
         , aapl_position(0)
@@ -54,6 +57,11 @@ struct Account {
         , day_trading_buying_power(other.day_trading_buying_power.load())
         , day_trades_count(other.day_trades_count.load()) {
     }
+
+    // Helper functions for conversion
+    static CashAmount fromDouble(double dollars) { return static_cast<CashAmount>(dollars * 100.0 + 0.5); }
+    double cashToDouble() const { return static_cast<double>(cash.load()) / 100.0; }
+    double buyingPowerToDouble() const { return static_cast<double>(buying_power.load()) / 100.0; }
 };
 
 // Represents a client's live connection state
@@ -142,8 +150,8 @@ public:
     void cleanupInactiveSessions(std::chrono::minutes timeout = std::chrono::minutes(30));
     
     // Risk management helpers
-    bool checkBuyingPower(const UserId& user_id, double required_cash);
-    bool updatePosition(const UserId& user_id, const std::string& symbol, long quantity_change, double price);
+    bool checkBuyingPower(const UserId& user_id, CashAmount required_cash);
+    bool updatePosition(const UserId& user_id, const std::string& symbol, long quantity_change, Price price);
     
     // Statistics
     size_t getActiveSessionCount();

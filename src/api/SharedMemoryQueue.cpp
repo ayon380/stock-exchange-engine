@@ -279,7 +279,7 @@ void SharedMemoryOrderServer::processOrders() {
                     static_cast<int>(order_msg->side),
                     static_cast<int>(order_msg->order_type),
                     static_cast<int64_t>(order_msg->quantity),
-                    order_msg->price,
+                    static_cast<Price>(order_msg->price * 100.0 + 0.5), // Convert double to Price
                     static_cast<int64_t>(order_msg->timestamp_ms)
                 };
 
