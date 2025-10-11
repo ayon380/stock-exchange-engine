@@ -20,42 +20,48 @@ using CashAmount = int64_t;
 // Represents a user's financial state in memory
 struct Account {
     std::atomic<CashAmount> cash;
-    std::atomic<long> goog_position;
-    std::atomic<long> aapl_position;
-    std::atomic<long> tsla_position;
-    std::atomic<long> msft_position;
-    std::atomic<long> amzn_position;
+    std::atomic<long> aapl_qty;
+    std::atomic<long> googl_qty;
+    std::atomic<long> msft_qty;
+    std::atomic<long> amzn_qty;
+    std::atomic<long> tsla_qty;
     // Add more positions as needed
     
     // Risk metrics
     std::atomic<CashAmount> buying_power;
     std::atomic<CashAmount> day_trading_buying_power;
-    std::atomic<int> day_trades_count;
+    std::atomic<long long> total_trades;
+    std::atomic<long long> realized_pnl;
+    std::atomic<bool> is_active;
     
     // Constructor to initialize atomic values
     Account(CashAmount initial_cash = 0) 
         : cash(initial_cash)
-        , goog_position(0)
-        , aapl_position(0)
-        , tsla_position(0)
-        , msft_position(0)
-        , amzn_position(0)
+        , aapl_qty(0)
+        , googl_qty(0)
+        , msft_qty(0)
+        , amzn_qty(0)
+        , tsla_qty(0)
         , buying_power(initial_cash)
         , day_trading_buying_power(initial_cash)
-        , day_trades_count(0) {
+        , total_trades(0)
+        , realized_pnl(0)
+        , is_active(true) {
     }
     
     // Copy constructor for atomic types
     Account(const Account& other)
         : cash(other.cash.load())
-        , goog_position(other.goog_position.load())
-        , aapl_position(other.aapl_position.load())
-        , tsla_position(other.tsla_position.load())
-        , msft_position(other.msft_position.load())
-        , amzn_position(other.amzn_position.load())
+        , aapl_qty(other.aapl_qty.load())
+        , googl_qty(other.googl_qty.load())
+        , msft_qty(other.msft_qty.load())
+        , amzn_qty(other.amzn_qty.load())
+        , tsla_qty(other.tsla_qty.load())
         , buying_power(other.buying_power.load())
         , day_trading_buying_power(other.day_trading_buying_power.load())
-        , day_trades_count(other.day_trades_count.load()) {
+        , total_trades(other.total_trades.load())
+        , realized_pnl(other.realized_pnl.load())
+        , is_active(other.is_active.load()) {
     }
 
     // Helper functions for conversion
@@ -152,6 +158,9 @@ public:
     // Risk management helpers
     bool checkBuyingPower(const UserId& user_id, CashAmount required_cash);
     bool updatePosition(const UserId& user_id, const std::string& symbol, long quantity_change, Price price);
+    
+    // Database synchronization (called every 30 seconds)
+    void syncAllAccountsToDatabase();
     
     // Statistics
     size_t getActiveSessionCount();

@@ -67,24 +67,32 @@ public:
     struct UserAccount {
         std::string user_id;
         CashAmount cash;
-        long goog_position;
-        long aapl_position;
-        long tsla_position;
-        long msft_position;
-        long amzn_position;
+        long aapl_qty;
+        long googl_qty;
+        long msft_qty;
+        long amzn_qty;
+        long tsla_qty;
         CashAmount buying_power;
         CashAmount day_trading_buying_power;
-        int day_trades_count;
+        int64_t total_trades;
+        int64_t realized_pnl;
+        bool is_active;
 
         // Helper functions for conversion
         static CashAmount fromDouble(double dollars) { return static_cast<CashAmount>(dollars * 100.0 + 0.5); }
         double cashToDouble() const { return static_cast<double>(cash) / 100.0; }
         double buyingPowerToDouble() const { return static_cast<double>(buying_power) / 100.0; }
+        
+        UserAccount() : user_id(""), cash(0), aapl_qty(0), googl_qty(0), msft_qty(0), 
+                       amzn_qty(0), tsla_qty(0), buying_power(0), day_trading_buying_power(0),
+                       total_trades(0), realized_pnl(0), is_active(true) {}
     };
     
     bool loadUserAccount(const std::string& user_id, UserAccount& account);
     bool saveUserAccount(const UserAccount& account);
     bool createUserAccount(const std::string& user_id, CashAmount initial_cash = 10000000); // $100,000.00 in fixed-point
+    UserAccount getUserAccount(const std::string& user_id); // Returns account or empty if not found
+    bool updateUserAccount(const UserAccount& account); // Update existing account
     
     // Health check
     bool isConnected() const;

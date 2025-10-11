@@ -104,14 +104,16 @@ bool AuthenticationManager::loadAccountFromDatabase(const UserId& user_id) {
             // Create in-memory account from database data
             auto account = std::make_unique<Account>();
             account->cash.store(db_account.cash);
-            account->goog_position.store(db_account.goog_position);
-            account->aapl_position.store(db_account.aapl_position);
-            account->tsla_position.store(db_account.tsla_position);
-            account->msft_position.store(db_account.msft_position);
-            account->amzn_position.store(db_account.amzn_position);
+            account->aapl_qty.store(db_account.aapl_qty);
+            account->googl_qty.store(db_account.googl_qty);
+            account->msft_qty.store(db_account.msft_qty);
+            account->amzn_qty.store(db_account.amzn_qty);
+            account->tsla_qty.store(db_account.tsla_qty);
             account->buying_power.store(db_account.buying_power);
             account->day_trading_buying_power.store(db_account.day_trading_buying_power);
-            account->day_trades_count.store(db_account.day_trades_count);
+            account->total_trades.store(db_account.total_trades);
+            account->realized_pnl.store(db_account.realized_pnl);
+            account->is_active.store(db_account.is_active);
             
             // Store in accounts map
             {
@@ -194,11 +196,11 @@ bool AuthenticationManager::updatePosition(const UserId& user_id, const std::str
     
     // Update position based on symbol
     std::atomic<long>* position = nullptr;
-    if (symbol == "GOOG") position = &account->goog_position;
-    else if (symbol == "AAPL") position = &account->aapl_position;
-    else if (symbol == "TSLA") position = &account->tsla_position;
-    else if (symbol == "MSFT") position = &account->msft_position;
-    else if (symbol == "AMZN") position = &account->amzn_position;
+    if (symbol == "GOOGL" || symbol == "GOOG") position = &account->googl_qty;
+    else if (symbol == "AAPL") position = &account->aapl_qty;
+    else if (symbol == "TSLA") position = &account->tsla_qty;
+    else if (symbol == "MSFT") position = &account->msft_qty;
+    else if (symbol == "AMZN") position = &account->amzn_qty;
     
     if (position) {
         long old_position = position->load();
@@ -227,6 +229,50 @@ size_t AuthenticationManager::getActiveSessionCount() {
 size_t AuthenticationManager::getLoadedAccountCount() {
     std::shared_lock<std::shared_mutex> lock(accounts_mutex_);
     return accounts_.size();
+}
+
+void AuthenticationManager::syncAllAccountsToDatabase() {
+    if (!db_manager_) {
+        return;
+    }
+    
+    std::shared_lock<std::shared_mutex> lock(accounts_mutex_);
+    
+    int synced_count = 0;
+    int failed_count = 0;
+    
+    for (const auto& [user_id, account] : accounts_) {
+        // Convert in-memory Account to DatabaseManager::UserAccount
+        DatabaseManager::UserAccount db_account;
+        db_account.user_id = user_id;
+        db_account.cash = account->cash.load();
+        db_account.aapl_qty = account->aapl_qty.load();
+        db_account.googl_qty = account->googl_qty.load();
+        db_account.msft_qty = account->msft_qty.load();
+        db_account.amzn_qty = account->amzn_qty.load();
+        db_account.tsla_qty = account->tsla_qty.load();
+        db_account.buying_power = account->buying_power.load();
+        db_account.day_trading_buying_power = account->day_trading_buying_power.load();
+        db_account.total_trades = account->total_trades.load();
+        db_account.realized_pnl = account->realized_pnl.load();
+        db_account.is_active = account->is_active.load();
+        
+        // Save to database
+        if (db_manager_->updateUserAccount(db_account)) {
+            synced_count++;
+        } else {
+            failed_count++;
+            std::cerr << "Failed to sync account to DB: " << user_id << std::endl;
+        }
+    }
+    
+    if (synced_count > 0) {
+        std::cout << "✅ Synced " << synced_count << " accounts to database";
+        if (failed_count > 0) {
+            std::cout << " (" << failed_count << " failed)";
+        }
+        std::cout << std::endl;
+    }
 }
 
 bool AuthenticationManager::validateJWTWithRedis(const std::string& jwt_token, UserId& user_id) {

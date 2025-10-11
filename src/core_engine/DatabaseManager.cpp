@@ -95,15 +95,17 @@ void DatabaseManager::initializeTables() {
         txn.exec(R"(
             CREATE TABLE IF NOT EXISTS user_accounts (
                 user_id VARCHAR(50) PRIMARY KEY,
-                cash DECIMAL(15,4) NOT NULL DEFAULT 0,
-                goog_position BIGINT NOT NULL DEFAULT 0,
-                aapl_position BIGINT NOT NULL DEFAULT 0,
-                tsla_position BIGINT NOT NULL DEFAULT 0,
-                msft_position BIGINT NOT NULL DEFAULT 0,
-                amzn_position BIGINT NOT NULL DEFAULT 0,
-                buying_power DECIMAL(15,4) NOT NULL DEFAULT 0,
-                day_trading_buying_power DECIMAL(15,4) NOT NULL DEFAULT 0,
-                day_trades_count INTEGER NOT NULL DEFAULT 0,
+                cash BIGINT NOT NULL DEFAULT 0,
+                aapl_qty BIGINT NOT NULL DEFAULT 0,
+                googl_qty BIGINT NOT NULL DEFAULT 0,
+                msft_qty BIGINT NOT NULL DEFAULT 0,
+                amzn_qty BIGINT NOT NULL DEFAULT 0,
+                tsla_qty BIGINT NOT NULL DEFAULT 0,
+                buying_power BIGINT NOT NULL DEFAULT 0,
+                day_trading_buying_power BIGINT NOT NULL DEFAULT 0,
+                total_trades BIGINT NOT NULL DEFAULT 0,
+                realized_pnl BIGINT NOT NULL DEFAULT 0,
+                is_active BOOLEAN NOT NULL DEFAULT true,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         )");
@@ -280,9 +282,9 @@ bool DatabaseManager::loadUserAccount(const std::string& user_id, UserAccount& a
     try {
         pqxx::work txn(*conn_);
         
-        std::string query = "SELECT user_id, cash, goog_position, aapl_position, tsla_position, "
-                           "msft_position, amzn_position, buying_power, day_trading_buying_power, "
-                           "day_trades_count FROM user_accounts WHERE user_id = $1";
+        std::string query = "SELECT user_id, cash, aapl_qty, googl_qty, msft_qty, "
+                           "amzn_qty, tsla_qty, buying_power, day_trading_buying_power, "
+                           "total_trades, realized_pnl, is_active FROM user_accounts WHERE user_id = $1";
         
         auto result = txn.exec_params(query, user_id);
         
@@ -293,14 +295,16 @@ bool DatabaseManager::loadUserAccount(const std::string& user_id, UserAccount& a
         auto row = result[0];
         account.user_id = row["user_id"].as<std::string>();
         account.cash = UserAccount::fromDouble(row["cash"].as<double>());
-        account.goog_position = row["goog_position"].as<long>();
-        account.aapl_position = row["aapl_position"].as<long>();
-        account.tsla_position = row["tsla_position"].as<long>();
-        account.msft_position = row["msft_position"].as<long>();
-        account.amzn_position = row["amzn_position"].as<long>();
+        account.aapl_qty = row["aapl_qty"].as<long>();
+        account.googl_qty = row["googl_qty"].as<long>();
+        account.msft_qty = row["msft_qty"].as<long>();
+        account.amzn_qty = row["amzn_qty"].as<long>();
+        account.tsla_qty = row["tsla_qty"].as<long>();
         account.buying_power = static_cast<CashAmount>(row["buying_power"].as<double>() * 100.0 + 0.5);
         account.day_trading_buying_power = static_cast<CashAmount>(row["day_trading_buying_power"].as<double>() * 100.0 + 0.5);
-        account.day_trades_count = row["day_trades_count"].as<int>();
+        account.total_trades = row["total_trades"].as<int64_t>();
+        account.realized_pnl = row["realized_pnl"].as<int64_t>();
+        account.is_active = row["is_active"].as<bool>();
         
         txn.commit();
         return true;
@@ -320,16 +324,17 @@ bool DatabaseManager::saveUserAccount(const UserAccount& account) {
     try {
         pqxx::work txn(*conn_);
         
-        std::string query = "UPDATE user_accounts SET cash = $2, goog_position = $3, "
-                           "aapl_position = $4, tsla_position = $5, msft_position = $6, "
-                           "amzn_position = $7, buying_power = $8, day_trading_buying_power = $9, "
-                           "day_trades_count = $10 WHERE user_id = $1";
+        std::string query = "UPDATE user_accounts SET cash = $2, aapl_qty = $3, "
+                           "googl_qty = $4, msft_qty = $5, amzn_qty = $6, "
+                           "tsla_qty = $7, buying_power = $8, day_trading_buying_power = $9, "
+                           "total_trades = $10, realized_pnl = $11, is_active = $12 WHERE user_id = $1";
         
         auto result = txn.exec_params(query, account.user_id, account.cash, 
-                                     account.goog_position, account.aapl_position,
-                                     account.tsla_position, account.msft_position,
-                                     account.amzn_position, account.buying_power,
-                                     account.day_trading_buying_power, account.day_trades_count);
+                                     account.aapl_qty, account.googl_qty,
+                                     account.msft_qty, account.amzn_qty,
+                                     account.tsla_qty, account.buying_power,
+                                     account.day_trading_buying_power, account.total_trades,
+                                     account.realized_pnl, account.is_active);
         
         txn.commit();
         return result.affected_rows() > 0;
@@ -349,13 +354,13 @@ bool DatabaseManager::createUserAccount(const std::string& user_id, CashAmount i
     try {
         pqxx::work txn(*conn_);
         
-        std::string query = "INSERT INTO user_accounts (user_id, cash, goog_position, aapl_position, "
-                           "tsla_position, msft_position, amzn_position, buying_power, "
-                           "day_trading_buying_power, day_trades_count) "
-                           "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)";
+        std::string query = "INSERT INTO user_accounts (user_id, cash, aapl_qty, googl_qty, "
+                           "msft_qty, amzn_qty, tsla_qty, buying_power, "
+                           "day_trading_buying_power, total_trades, realized_pnl, is_active) "
+                           "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)";
         
         txn.exec_params(query, user_id, initial_cash, 0, 0, 0, 0, 0, 
-                       initial_cash, initial_cash, 0);
+                       initial_cash, initial_cash, 0, 0, 1);
         
         txn.commit();
         return true;
@@ -364,4 +369,16 @@ bool DatabaseManager::createUserAccount(const std::string& user_id, CashAmount i
         std::cerr << "Error creating user account: " << e.what() << std::endl;
         return false;
     }
+}
+
+DatabaseManager::UserAccount DatabaseManager::getUserAccount(const std::string& user_id) {
+    UserAccount account;
+    if (!loadUserAccount(user_id, account)) {
+        return UserAccount(); // Return empty account
+    }
+    return account;
+}
+
+bool DatabaseManager::updateUserAccount(const UserAccount& account) {
+    return saveUserAccount(account);
 }
