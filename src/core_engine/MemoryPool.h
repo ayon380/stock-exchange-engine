@@ -3,15 +3,27 @@
 #include <vector>
 #include <atomic>
 #include <cstddef>
+#include <cstddef>  // for offsetof
 #include <new>
 
 // Memory pool for fixed-size allocations
 template<typename T, size_t PoolSize = 1024>
 class MemoryPool {
 private:
-    struct alignas(T) Block {
-        char data[sizeof(T)];
+    // Use union to safely store either T or a pointer for free list
+    // Ensure block is large enough for both T and a pointer
+    struct Block {
+        union {
+            alignas(T) char data[sizeof(T)];
+            Block* next;  // For free list when block is not in use
+        };
     };
+    
+    // Ensure Block can hold a pointer
+    static_assert(sizeof(Block) >= sizeof(Block*), 
+                  "Block must be large enough to hold a pointer");
+    static_assert(alignof(Block) >= alignof(Block*),
+                  "Block must be properly aligned for pointer storage");
     
     std::unique_ptr<Block[]> pool_;
     std::atomic<Block*> free_list_;
@@ -20,10 +32,11 @@ private:
     
     void initializeFreeList() {
         // Initialize the free list in reverse order for better cache locality
+        // Now using the union's 'next' member instead of reinterpret_cast
         for (size_t i = pool_size_ - 1; i > 0; --i) {
-            *reinterpret_cast<Block**>(&pool_[i]) = &pool_[i - 1];
+            pool_[i].next = &pool_[i - 1];
         }
-        *reinterpret_cast<Block**>(&pool_[0]) = nullptr;
+        pool_[0].next = nullptr;
         free_list_.store(&pool_[pool_size_ - 1], std::memory_order_relaxed);
     }
     
@@ -47,16 +60,19 @@ public:
         Block* block = free_list_.load(std::memory_order_acquire);
         
         while (block != nullptr) {
-            Block* next = *reinterpret_cast<Block**>(block);
+            // Use union's next member instead of reinterpret_cast
+            Block* next = block->next;
             if (free_list_.compare_exchange_weak(block, next, 
                                                std::memory_order_release, 
                                                std::memory_order_acquire)) {
                 allocated_count_.fetch_add(1, std::memory_order_relaxed);
-                return new(block) T(std::forward<Args>(args)...);
+                // Construct T in the block's data area (placement new)
+                return new(&block->data) T(std::forward<Args>(args)...);
             }
         }
         
         // Pool exhausted, fallback to regular allocation
+        // NOTE: This is tracked separately and must be handled in deallocate
         return new T(std::forward<Args>(args)...);
     }
     
@@ -64,16 +80,20 @@ public:
     void deallocate(T* ptr) {
         if (!ptr) return;
         
+        // Calculate the Block* from T* (ptr points to the data member in the union)
+        Block* block = reinterpret_cast<Block*>(
+            reinterpret_cast<char*>(ptr) - offsetof(Block, data)
+        );
+        
         // Check if pointer is within our pool range
-        Block* block = reinterpret_cast<Block*>(ptr);
         if (block >= pool_.get() && block < pool_.get() + pool_size_) {
             // Call destructor
             ptr->~T();
             
-            // Add back to free list
+            // Add back to free list using union's next member
             Block* head = free_list_.load(std::memory_order_acquire);
             do {
-                *reinterpret_cast<Block**>(block) = head;
+                block->next = head;
             } while (!free_list_.compare_exchange_weak(head, block,
                                                      std::memory_order_release,
                                                      std::memory_order_acquire));

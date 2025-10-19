@@ -4,8 +4,10 @@
 #include <chrono>
 
 DatabaseManager::DatabaseManager(const std::string& connection_string, 
-                                std::chrono::seconds sync_interval)
-    : connection_string_(connection_string), sync_interval_(sync_interval), running_(false) {
+                                std::chrono::seconds sync_interval,
+                                size_t pool_size)
+    : connection_string_(connection_string), sync_interval_(sync_interval), 
+      pool_size_(pool_size), running_(false) {
 }
 
 DatabaseManager::~DatabaseManager() {
@@ -15,13 +17,14 @@ DatabaseManager::~DatabaseManager() {
 
 bool DatabaseManager::connect() {
     try {
-        conn_ = std::make_unique<pqxx::connection>(connection_string_);
-        if (!conn_->is_open()) {
-            std::cerr << "Failed to connect to PostgreSQL database" << std::endl;
+        // Initialize connection pool
+        connection_pool_ = std::make_unique<ConnectionPool>(connection_string_, pool_size_);
+        if (!connection_pool_->initialize()) {
+            std::cerr << "Failed to initialize connection pool" << std::endl;
             return false;
         }
         
-    ENGINE_LOG_DEV(std::cout << "Connected to PostgreSQL database: " << conn_->dbname() << std::endl;);
+        ENGINE_LOG_DEV(std::cout << "Connected to PostgreSQL database with pool size: " << pool_size_ << std::endl;);
         initializeTables();
         return true;
     } catch (const std::exception& e) {
@@ -31,15 +34,14 @@ bool DatabaseManager::connect() {
 }
 
 void DatabaseManager::disconnect() {
-    if (conn_ && conn_->is_open()) {
-    conn_->close();
-    ENGINE_LOG_DEV(std::cout << "Database connection closed" << std::endl;);
-    }
+    connection_pool_.reset();
+    ENGINE_LOG_DEV(std::cout << "Database connection pool closed" << std::endl;);
 }
 
 void DatabaseManager::initializeTables() {
     try {
-        pqxx::work txn(*conn_);
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
         
         // Create stocks table
         txn.exec(R"(
@@ -151,7 +153,8 @@ void DatabaseManager::syncWorker() {
 
 bool DatabaseManager::saveStockData(const StockData& data) {
     try {
-        pqxx::work txn(*conn_);
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
         
         txn.exec_params(R"(
             INSERT INTO stocks (symbol, last_price, open_price, volume, timestamp_ms)
@@ -160,7 +163,7 @@ bool DatabaseManager::saveStockData(const StockData& data) {
                 last_price = EXCLUDED.last_price,
                 open_price = EXCLUDED.open_price,
                 volume = EXCLUDED.volume
-        )", data.symbol, data.last_price, data.open_price, data.volume, data.timestamp_ms);
+        )", data.symbol, data.lastPriceToDouble(), data.openPriceToDouble(), data.volume, data.timestamp_ms);
         
         txn.commit();
         return true;
@@ -172,7 +175,8 @@ bool DatabaseManager::saveStockData(const StockData& data) {
 
 bool DatabaseManager::saveStockDataBatch(const std::vector<StockData>& data_batch) {
     try {
-        pqxx::work txn(*conn_);
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
         
         for (const auto& data : data_batch) {
             txn.exec_params(R"(
@@ -182,7 +186,7 @@ bool DatabaseManager::saveStockDataBatch(const std::vector<StockData>& data_batc
                     last_price = EXCLUDED.last_price,
                     open_price = EXCLUDED.open_price,
                     volume = EXCLUDED.volume
-            )", data.symbol, data.last_price, data.open_price, data.volume, data.timestamp_ms);
+            )", data.symbol, data.lastPriceToDouble(), data.openPriceToDouble(), data.volume, data.timestamp_ms);
         }
         
     txn.commit();
@@ -198,7 +202,8 @@ std::vector<StockData> DatabaseManager::loadStockData() {
     std::vector<StockData> result;
     
     try {
-        pqxx::work txn(*conn_);
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
         
         auto res = txn.exec(R"(
             SELECT DISTINCT ON (symbol) 
@@ -210,8 +215,8 @@ std::vector<StockData> DatabaseManager::loadStockData() {
         for (const auto& row : res) {
             result.emplace_back(
                 row[0].as<std::string>(),
-                row[1].as<double>(),
-                row[2].as<double>(),
+                StockData::fromDouble(row[1].as<double>()),
+                StockData::fromDouble(row[2].as<double>()),
                 row[3].as<int64_t>(),
                 row[4].as<int64_t>()
             );
@@ -228,7 +233,8 @@ std::vector<StockData> DatabaseManager::loadStockData() {
 
 StockData DatabaseManager::getLatestStockData(const std::string& symbol) {
     try {
-        pqxx::work txn(*conn_);
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
         
         auto res = txn.exec_params(R"(
             SELECT symbol, last_price, open_price, volume, timestamp_ms
@@ -242,8 +248,8 @@ StockData DatabaseManager::getLatestStockData(const std::string& symbol) {
             const auto& row = res[0];
             return StockData(
                 row[0].as<std::string>(),
-                row[1].as<double>(),
-                row[2].as<double>(),
+                StockData::fromDouble(row[1].as<double>()),
+                StockData::fromDouble(row[2].as<double>()),
                 row[3].as<int64_t>(),
                 row[4].as<int64_t>()
             );
@@ -255,7 +261,7 @@ StockData DatabaseManager::getLatestStockData(const std::string& symbol) {
     }
     
     // Return default data if not found
-    return StockData(symbol, 100.0, 100.0, 0, 0);
+    return StockData(symbol, StockData::fromDouble(100.0), StockData::fromDouble(100.0), 0, 0);
 }
 
 bool DatabaseManager::saveOrder(const std::string& order_data) {
@@ -271,17 +277,18 @@ bool DatabaseManager::saveTrade(const std::string& trade_data) {
 }
 
 bool DatabaseManager::isConnected() const {
-    return conn_ && conn_->is_open();
+    return connection_pool_ && connection_pool_->available_count() > 0;
 }
 
 bool DatabaseManager::loadUserAccount(const std::string& user_id, UserAccount& account) {
-    if (!conn_ || !conn_->is_open()) {
+    if (!connection_pool_) {
         std::cerr << "Database not connected" << std::endl;
         return false;
     }
 
     try {
-        pqxx::work txn(*conn_);
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
         
         std::string query = "SELECT user_id, cash, aapl_qty, googl_qty, msft_qty, "
                            "amzn_qty, tsla_qty, buying_power, day_trading_buying_power, "
@@ -294,17 +301,17 @@ bool DatabaseManager::loadUserAccount(const std::string& user_id, UserAccount& a
         }
         
         auto row = result[0];
-        account.user_id = row["user_id"].as<std::string>();
-        account.cash = UserAccount::fromDouble(row["cash"].as<double>());
+    account.user_id = row["user_id"].as<std::string>();
+    account.cash = row["cash"].as<long long>();
         account.aapl_qty = row["aapl_qty"].as<long>();
         account.googl_qty = row["googl_qty"].as<long>();
         account.msft_qty = row["msft_qty"].as<long>();
         account.amzn_qty = row["amzn_qty"].as<long>();
         account.tsla_qty = row["tsla_qty"].as<long>();
-        account.buying_power = static_cast<CashAmount>(row["buying_power"].as<double>() * 100.0 + 0.5);
-        account.day_trading_buying_power = static_cast<CashAmount>(row["day_trading_buying_power"].as<double>() * 100.0 + 0.5);
+    account.buying_power = row["buying_power"].as<long long>();
+    account.day_trading_buying_power = row["day_trading_buying_power"].as<long long>();
         account.total_trades = row["total_trades"].as<int64_t>();
-        account.realized_pnl = row["realized_pnl"].as<int64_t>();
+    account.realized_pnl = row["realized_pnl"].as<int64_t>();
         account.is_active = row["is_active"].as<bool>();
         
         txn.commit();
@@ -317,13 +324,14 @@ bool DatabaseManager::loadUserAccount(const std::string& user_id, UserAccount& a
 }
 
 bool DatabaseManager::saveUserAccount(const UserAccount& account) {
-    if (!conn_ || !conn_->is_open()) {
+    if (!connection_pool_) {
         std::cerr << "Database not connected" << std::endl;
         return false;
     }
 
     try {
-        pqxx::work txn(*conn_);
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
         
         std::string query = "UPDATE user_accounts SET cash = $2, aapl_qty = $3, "
                            "googl_qty = $4, msft_qty = $5, amzn_qty = $6, "
@@ -347,13 +355,14 @@ bool DatabaseManager::saveUserAccount(const UserAccount& account) {
 }
 
 bool DatabaseManager::createUserAccount(const std::string& user_id, CashAmount initial_cash) {
-    if (!conn_ || !conn_->is_open()) {
+    if (!connection_pool_) {
         std::cerr << "Database not connected" << std::endl;
         return false;
     }
 
     try {
-        pqxx::work txn(*conn_);
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
         
         std::string query = "INSERT INTO user_accounts (user_id, cash, aapl_qty, googl_qty, "
                            "msft_qty, amzn_qty, tsla_qty, buying_power, "

@@ -48,17 +48,17 @@ void GRPCServer::convertFromCoreOrderStatus(const Order& core, stock::OrderStatu
 
 void GRPCServer::convertFromCoreMarketData(const MarketDataUpdate& core, stock::MarketDataUpdate& out) {
     out.set_symbol(core.symbol);
-    out.set_last_price(core.last_price);
+    out.set_last_price(static_cast<double>(core.last_price) / 100.0);
     out.set_last_qty(core.last_qty);
     out.set_timestamp_ms(core.timestamp_ms);
     for (const auto& lvl : core.top_bids) {
         auto* p = out.add_top_bids();
-        p->set_price(lvl.price);
+        p->set_price(static_cast<double>(lvl.price) / 100.0);
         p->set_qty(lvl.quantity);
     }
     for (const auto& lvl : core.top_asks) {
         auto* p = out.add_top_asks();
-        p->set_price(lvl.price);
+        p->set_price(static_cast<double>(lvl.price) / 100.0);
         p->set_qty(lvl.quantity);
     }
 }
@@ -70,7 +70,7 @@ void GRPCServer::convertFromCoreIndex(const std::vector<IndexEntry>& core, stock
     for (const auto& e : core) {
         auto* pe = out.add_entries();
         pe->set_symbol(e.symbol);
-        pe->set_last_price(e.last_price);
+        pe->set_last_price(e.priceToDouble());
         pe->set_change_pct(e.change_pct);
         pe->set_volume(e.volume);
     }
@@ -283,7 +283,7 @@ grpc::Status GRPCServer::StreamAllStocks(grpc::ServerContext* context,
         for (const auto& snapshot : snapshots) {
             auto* stock_data = update.add_stocks();
             stock_data->set_symbol(snapshot.symbol);
-            stock_data->set_last_price(snapshot.last_price);
+            stock_data->set_last_price(static_cast<double>(snapshot.last_price) / 100.0);
             stock_data->set_last_qty(0); // Default value
             stock_data->set_change_pct(snapshot.change_percent);
             stock_data->set_volume(snapshot.volume);
@@ -291,12 +291,12 @@ grpc::Status GRPCServer::StreamAllStocks(grpc::ServerContext* context,
             if (include_order_book) {
                 for (const auto& bid : snapshot.top_bids) {
                     auto* level = stock_data->add_top_bids();
-                    level->set_price(bid.price);
+                    level->set_price(static_cast<double>(bid.price) / 100.0);
                     level->set_qty(bid.quantity);
                 }
                 for (const auto& ask : snapshot.top_asks) {
                     auto* level = stock_data->add_top_asks();
-                    level->set_price(ask.price);
+                    level->set_price(static_cast<double>(ask.price) / 100.0);
                     level->set_qty(ask.quantity);
                 }
             }

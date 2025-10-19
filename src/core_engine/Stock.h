@@ -7,6 +7,7 @@
 #include <map>
 #include <thread>
 #include <chrono>
+#include <functional>
 #include "LockFreeQueue.h"
 #include "MemoryPool.h"
 #include "CPUAffinity.h"
@@ -76,6 +77,9 @@ struct Trade {
     double toDouble() const { return static_cast<double>(price) / 100.0; }
 };
 
+// Callback invoked when a trade is executed. The parameter carries trade metadata in fixed-point cents.
+using TradeCallback = std::function<void(const Trade&)>;
+
 // Messages for lock-free communication
 struct OrderMessage {
     enum Type { NEW_ORDER, CANCEL_ORDER, MARKET_DATA_REQUEST };
@@ -98,7 +102,7 @@ struct TradeMessage {
 
 struct MarketDataMessage {
     std::string symbol;
-    double last_price;
+    Price last_price;
     int64_t last_qty;
     std::vector<PriceLevel> top_bids;
     std::vector<PriceLevel> top_asks;
@@ -171,7 +175,7 @@ private:
     
     // Lock-free queues for communication
     static constexpr size_t QUEUE_SIZE = 4096; // Must be power of 2
-    SPSCQueue<OrderMessage, QUEUE_SIZE> order_queue_;           // Ingress -> Matching Engine
+    MPSCQueue<OrderMessage, QUEUE_SIZE> order_queue_;           // Ingress -> Matching Engine
     SPSCQueue<TradeMessage, QUEUE_SIZE> trade_queue_;           // Matching Engine -> Trade Publisher  
     SPSCQueue<MarketDataMessage, QUEUE_SIZE> market_data_queue_; // Matching Engine -> Market Data Publisher
     
@@ -213,10 +217,24 @@ private:
     // Market order protection (max 10% deviation from last price)
     static constexpr double MAX_MARKET_ORDER_DEVIATION = 0.10; // 10%
     
+    // Order book depth limits (prevent memory exhaustion)
+    static constexpr size_t MAX_ORDER_BOOK_DEPTH = 10000; // Max orders per side
+    std::atomic<size_t> total_buy_orders_{0};
+    std::atomic<size_t> total_sell_orders_{0};
+    
+    // VWAP calculation synchronization
+    mutable std::mutex vwap_mutex_;
+    double vwap_numerator_ = 0.0;  // Sum of (price * quantity)
+    int64_t vwap_denominator_ = 0;  // Sum of quantity
+    
     // Statistics for monitoring
     std::atomic<uint64_t> orders_processed_;
     std::atomic<uint64_t> trades_executed_;
     std::atomic<uint64_t> messages_sent_;
+
+    // Optional trade observer for account settlement and analytics
+    TradeCallback trade_callback_;
+    mutable std::mutex trade_callback_mutex_;
     
     // Core engine methods (no locks, single writer)
     void matchingEngineWorker();
@@ -251,13 +269,19 @@ public:
     
     // Market data (lock-free reads)
     double getLastPrice() const { return static_cast<double>(last_price_.load(std::memory_order_relaxed)) / 100.0; }
+    Price getLastPriceFixed() const { return last_price_.load(std::memory_order_relaxed); }
     int64_t getVolume() const { return volume_.load(std::memory_order_relaxed); }
     double getChangePercent() const;
     double getChangePoints() const;
+    Price getChangePointsFixed() const;
     double getDayHigh() const { return static_cast<double>(day_high_.load(std::memory_order_relaxed)) / 100.0; }
     double getDayLow() const { return static_cast<double>(day_low_.load(std::memory_order_relaxed)) / 100.0; }
     double getDayOpen() const { return static_cast<double>(open_price_.load(std::memory_order_relaxed)) / 100.0; }
+    Price getDayHighFixed() const { return day_high_.load(std::memory_order_relaxed); }
+    Price getDayLowFixed() const { return day_low_.load(std::memory_order_relaxed); }
+    Price getDayOpenFixed() const { return open_price_.load(std::memory_order_relaxed); }
     double getVWAP() const { return vwap_.load(std::memory_order_relaxed); }
+    Price getVWAPFixed() const;
     
     std::vector<PriceLevel> getTopBids(int count = 5) const;
     std::vector<PriceLevel> getTopAsks(int count = 5) const;
@@ -274,4 +298,6 @@ public:
     void setVolume(int64_t vol) { volume_.store(vol, std::memory_order_relaxed); }
     void setDayHigh(double high) { day_high_.store(static_cast<Price>(high * 100.0), std::memory_order_relaxed); }
     void setDayLow(double low) { day_low_.store(static_cast<Price>(low * 100.0), std::memory_order_relaxed); }
+
+    void setTradeCallback(TradeCallback callback);
 };

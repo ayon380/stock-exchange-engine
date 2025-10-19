@@ -5,7 +5,7 @@
 echo "Building the stock exchange engine..."
 
 # Navigate to the build directory (assuming it's from the stock-exchange-engine root)
-cd build
+cd /Users/ayon/Repos/Aurex/stock-exchange-engine/build
 
 # Build the project
 make -j4

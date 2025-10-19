@@ -31,6 +31,14 @@ bool StockExchange::initialize() {
     
     // Get available CPU cores for optimal affinity assignment
     auto available_cores = CPUAffinity::getAvailableCores();
+    
+    // CRITICAL FIX: Handle single-core or constrained environments
+    if (available_cores.empty()) {
+        // Fallback to a single default core (0) if no cores are available
+        std::cerr << "Warning: No available cores detected, using core 0 for all threads" << std::endl;
+        available_cores.push_back(0);
+    }
+    
     ENGINE_LOG_DEV(std::cout << "Available CPU cores: " << available_cores.size() << std::endl;);
     
     // Initialize database connection
@@ -213,7 +221,7 @@ MarketDataUpdate StockExchange::getMarketData(const std::string& symbol) {
     Stock* stock = it->second.get();
     MarketDataUpdate update;
     update.symbol = symbol;
-    update.last_price = stock->getLastPrice();
+    update.last_price = stock->getLastPriceFixed();
     update.last_qty = 0; // This would be from the last trade
     update.top_bids = stock->getTopBids(5);
     update.top_asks = stock->getTopAsks(5);
@@ -322,7 +330,7 @@ void StockExchange::calculateIndex() {
     for (const auto& [symbol, stock] : stocks_) {
         IndexEntry entry(
             symbol,
-            stock->getLastPrice(),
+            stock->getLastPriceFixed(),
             stock->getChangePercent(),
             stock->getVolume()
         );
@@ -337,7 +345,8 @@ void StockExchange::calculateMarketIndex() {
     std::vector<std::pair<std::string, double>> stock_values;
     
     for (const auto& [symbol, stock] : stocks_) {
-        double market_cap = stock->getLastPrice() * stock->getVolume(); // Simplified market cap
+    double price_dollars = stock->getLastPrice() ;
+    double market_cap = price_dollars * stock->getVolume(); // Simplified market cap
         stock_values.emplace_back(symbol, market_cap);
     }
     
@@ -360,7 +369,8 @@ void StockExchange::calculateMarketIndex() {
         double weight = 1.0 / constituents_count;
         total_weight += weight;
         
-        double price = stock->getLastPrice();
+    Price price_fixed = stock->getLastPriceFixed();
+    double price = static_cast<double>(price_fixed) / 100.0;
         double change_pct = stock->getChangePercent();
         
         weighted_price_sum += price * weight;
@@ -369,7 +379,7 @@ void StockExchange::calculateMarketIndex() {
         double contribution = (price * weight / market_index_base_value_) * 100;
         
         current_market_index_.constituents.emplace_back(
-            symbol, price, weight, contribution, change_pct
+            symbol, price_fixed, weight, contribution, change_pct
         );
     }
     
@@ -409,14 +419,14 @@ std::vector<StockSnapshot> StockExchange::getAllStocksSnapshot(bool include_orde
     for (const auto& [symbol, stock] : stocks_) {
         StockSnapshot snapshot;
         snapshot.symbol = symbol;
-        snapshot.last_price = stock->getLastPrice();
-        snapshot.change_points = stock->getChangePoints();
+    snapshot.last_price = stock->getLastPriceFixed();
+    snapshot.change_points = stock->getChangePointsFixed();
         snapshot.change_percent = stock->getChangePercent();
-        snapshot.day_high = stock->getDayHigh();
-        snapshot.day_low = stock->getDayLow();
-        snapshot.day_open = stock->getDayOpen();
+    snapshot.day_high = stock->getDayHighFixed();
+    snapshot.day_low = stock->getDayLowFixed();
+    snapshot.day_open = stock->getDayOpenFixed();
         snapshot.volume = stock->getVolume();
-        snapshot.vwap = stock->getVWAP();
+    snapshot.vwap = stock->getVWAPFixed();
         
         if (include_order_book) {
             snapshot.top_bids = stock->getTopBids(3);
@@ -504,8 +514,8 @@ void StockExchange::saveToDatabase() {
     for (const auto& [symbol, stock] : stocks_) {
         data_batch.emplace_back(
             symbol,
-            stock->getLastPrice(),
-            stock->getLastPrice(), // For now, using last price as open price
+            stock->getLastPriceFixed(),
+            stock->getDayOpenFixed(),
             stock->getVolume(),
             timestamp
         );

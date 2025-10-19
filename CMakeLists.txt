@@ -79,3 +79,17 @@ target_include_directories(stock_engine PRIVATE src)
 
 target_link_libraries(stock_engine PRIVATE gRPC::grpc++ protobuf::libprotobuf libpqxx::pqxx Boost::system Boost::thread Boost::interprocess absl::flat_hash_map absl::strings redis++::redis++_static)
 
+# Test executable
+add_executable(test_engine
+    tests/test_engine.cpp
+    src/core_engine/StockExchange.cpp
+    src/core_engine/DatabaseManager.cpp
+    src/core_engine/Stock.cpp
+    src/common/EngineConfig.cpp
+    src/common/EngineTelemetry.cpp
+)
+
+target_include_directories(test_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(test_engine PRIVATE src)
+
+target_link_libraries(test_engine PRIVATE libpqxx::pqxx Boost::system Boost::thread Boost::interprocess)

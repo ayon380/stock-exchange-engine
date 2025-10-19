@@ -6,6 +6,10 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <iostream>
 
 // Fixed-point arithmetic types
 using Price = int64_t;
@@ -28,9 +32,93 @@ struct StockData {
     double openPriceToDouble() const { return static_cast<double>(open_price) / 100.0; }
 };
 
+// Connection pool for thread-safe database access
+class ConnectionPool {
+private:
+    std::queue<std::unique_ptr<pqxx::connection>> available_connections_;
+    std::mutex pool_mutex_;
+    std::condition_variable pool_cv_;
+    std::string connection_string_;
+    size_t pool_size_;
+    std::atomic<size_t> active_connections_{0};
+    
+public:
+    ConnectionPool(const std::string& connection_string, size_t pool_size = 5)
+        : connection_string_(connection_string), pool_size_(pool_size) {}
+    
+    ~ConnectionPool() {
+        std::lock_guard<std::mutex> lock(pool_mutex_);
+        while (!available_connections_.empty()) {
+            available_connections_.pop();
+        }
+    }
+    
+    bool initialize() {
+        try {
+            for (size_t i = 0; i < pool_size_; ++i) {
+                auto conn = std::make_unique<pqxx::connection>(connection_string_);
+                if (!conn->is_open()) {
+                    return false;
+                }
+                available_connections_.push(std::move(conn));
+            }
+            active_connections_ = pool_size_;
+            return true;
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to initialize connection pool: " << e.what() << std::endl;
+            return false;
+        }
+    }
+    
+    std::unique_ptr<pqxx::connection> acquire() {
+        std::unique_lock<std::mutex> lock(pool_mutex_);
+        
+        // Wait for an available connection
+        pool_cv_.wait(lock, [this]() { return !available_connections_.empty(); });
+        
+        auto conn = std::move(available_connections_.front());
+        available_connections_.pop();
+        return conn;
+    }
+    
+    void release(std::unique_ptr<pqxx::connection> conn) {
+        std::lock_guard<std::mutex> lock(pool_mutex_);
+        available_connections_.push(std::move(conn));
+        pool_cv_.notify_one();
+    }
+    
+    size_t available_count() const {
+        std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(pool_mutex_));
+        return available_connections_.size();
+    }
+};
+
+// RAII wrapper for connection acquisition
+class ScopedConnection {
+private:
+    ConnectionPool& pool_;
+    std::unique_ptr<pqxx::connection> conn_;
+    
+public:
+    ScopedConnection(ConnectionPool& pool) : pool_(pool), conn_(pool.acquire()) {}
+    
+    ~ScopedConnection() {
+        if (conn_) {
+            pool_.release(std::move(conn_));
+        }
+    }
+    
+    pqxx::connection* operator->() { return conn_.get(); }
+    pqxx::connection& get() { return *conn_; }
+    
+    // Delete copy operations
+    ScopedConnection(const ScopedConnection&) = delete;
+    ScopedConnection& operator=(const ScopedConnection&) = delete;
+};
+
 class DatabaseManager {
 private:
-    std::unique_ptr<pqxx::connection> conn_;
+    std::unique_ptr<ConnectionPool> connection_pool_;
     std::atomic<bool> running_;
     std::thread sync_thread_;
     std::mutex sync_mutex_;
@@ -38,13 +126,15 @@ private:
     
     std::string connection_string_;
     std::chrono::seconds sync_interval_;
+    size_t pool_size_;
     
     void initializeTables();
     void syncWorker();
     
 public:
     DatabaseManager(const std::string& connection_string, 
-                   std::chrono::seconds sync_interval = std::chrono::seconds(30));
+                   std::chrono::seconds sync_interval = std::chrono::seconds(30),
+                   size_t pool_size = 5);
     ~DatabaseManager();
     
     bool connect();
