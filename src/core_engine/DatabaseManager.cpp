@@ -1,4 +1,5 @@
 #include "DatabaseManager.h"
+#include "../common/EngineLogging.h"
 #include <iostream>
 #include <chrono>
 
@@ -20,7 +21,7 @@ bool DatabaseManager::connect() {
             return false;
         }
         
-        std::cout << "Connected to PostgreSQL database: " << conn_->dbname() << std::endl;
+    ENGINE_LOG_DEV(std::cout << "Connected to PostgreSQL database: " << conn_->dbname() << std::endl;);
         initializeTables();
         return true;
     } catch (const std::exception& e) {
@@ -31,8 +32,8 @@ bool DatabaseManager::connect() {
 
 void DatabaseManager::disconnect() {
     if (conn_ && conn_->is_open()) {
-        conn_->close();
-        std::cout << "Database connection closed" << std::endl;
+    conn_->close();
+    ENGINE_LOG_DEV(std::cout << "Database connection closed" << std::endl;);
     }
 }
 
@@ -110,8 +111,8 @@ void DatabaseManager::initializeTables() {
             )
         )");
         
-        txn.commit();
-        std::cout << "Database tables initialized successfully" << std::endl;
+    txn.commit();
+    ENGINE_LOG_DEV(std::cout << "Database tables initialized successfully" << std::endl;);
     } catch (const std::exception& e) {
         std::cerr << "Error initializing database tables: " << e.what() << std::endl;
     }
@@ -120,8 +121,8 @@ void DatabaseManager::initializeTables() {
 void DatabaseManager::startBackgroundSync() {
     running_.store(true);
     sync_thread_ = std::thread(&DatabaseManager::syncWorker, this);
-    std::cout << "Database background sync started with interval: " 
-              << sync_interval_.count() << " seconds" << std::endl;
+    ENGINE_LOG_DEV(std::cout << "Database background sync started with interval: "
+                             << sync_interval_.count() << " seconds" << std::endl;);
 }
 
 void DatabaseManager::stopBackgroundSync() {
@@ -130,7 +131,7 @@ void DatabaseManager::stopBackgroundSync() {
     if (sync_thread_.joinable()) {
         sync_thread_.join();
     }
-    std::cout << "Database background sync stopped" << std::endl;
+    ENGINE_LOG_DEV(std::cout << "Database background sync stopped" << std::endl;);
 }
 
 void DatabaseManager::syncWorker() {
@@ -142,9 +143,9 @@ void DatabaseManager::syncWorker() {
         
         if (!running_.load()) break;
         
-        // This method will be called by the StockExchange to sync current data
-        // The actual syncing logic is handled by the StockExchange class
-        std::cout << "Database sync cycle completed" << std::endl;
+    // This method will be called by the StockExchange to sync current data
+    // The actual syncing logic is handled by the StockExchange class
+    ENGINE_LOG_DEV(std::cout << "Database sync cycle completed" << std::endl;);
     }
 }
 
@@ -184,8 +185,8 @@ bool DatabaseManager::saveStockDataBatch(const std::vector<StockData>& data_batc
             )", data.symbol, data.last_price, data.open_price, data.volume, data.timestamp_ms);
         }
         
-        txn.commit();
-        std::cout << "Saved " << data_batch.size() << " stock data records to database" << std::endl;
+    txn.commit();
+    ENGINE_LOG_DEV(std::cout << "Saved " << data_batch.size() << " stock data records to database" << std::endl;);
         return true;
     } catch (const std::exception& e) {
         std::cerr << "Error saving stock data batch: " << e.what() << std::endl;
@@ -216,8 +217,8 @@ std::vector<StockData> DatabaseManager::loadStockData() {
             );
         }
         
-        txn.commit();
-        std::cout << "Loaded " << result.size() << " stock data records from database" << std::endl;
+    txn.commit();
+    ENGINE_LOG_DEV(std::cout << "Loaded " << result.size() << " stock data records from database" << std::endl;);
     } catch (const std::exception& e) {
         std::cerr << "Error loading stock data: " << e.what() << std::endl;
     }

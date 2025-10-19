@@ -56,6 +56,8 @@ add_executable(stock_engine
     src/core_engine/StockExchange.cpp
     src/core_engine/DatabaseManager.cpp
     src/core_engine/Stock.cpp
+    src/common/EngineConfig.cpp
+    src/common/EngineTelemetry.cpp
     ${PROTO_SRCS} ${PROTO_HDRS} ${GRPC_SRCS} ${GRPC_HDRS}
 )
 

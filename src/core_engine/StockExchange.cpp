@@ -1,10 +1,12 @@
 #define NOMINMAX
 #include "StockExchange.h"
 #include "CPUAffinity.h"
+#include "../common/EngineLogging.h"
 #include <algorithm>
 #include <iostream>
 #include <chrono>
 #include <random>
+#include <future>
 
 StockExchange::StockExchange(const std::string& db_connection_string) 
     : running_(false), market_index_base_value_(1000.0) {  // Start index at 1000 like S&P 500
@@ -25,11 +27,11 @@ StockExchange::~StockExchange() {
 }
 
 bool StockExchange::initialize() {
-    std::cout << "Initializing Stock Exchange with " << STOCK_SYMBOLS.size() << " stocks..." << std::endl;
+    ENGINE_LOG_DEV(std::cout << "Initializing Stock Exchange with " << STOCK_SYMBOLS.size() << " stocks..." << std::endl;);
     
     // Get available CPU cores for optimal affinity assignment
     auto available_cores = CPUAffinity::getAvailableCores();
-    std::cout << "Available CPU cores: " << available_cores.size() << std::endl;
+    ENGINE_LOG_DEV(std::cout << "Available CPU cores: " << available_cores.size() << std::endl;);
     
     // Initialize database connection
     if (db_manager_) {
@@ -67,9 +69,9 @@ bool StockExchange::initialize() {
         stocks_[symbol] = std::make_unique<Stock>(symbol, initial_price, 
                                                   matching_core, md_core, trade_core);
         
-        std::cout << "Initialized " << symbol << " at $" << initial_price 
-                  << " (cores: " << matching_core << "," << md_core 
-                  << "," << trade_core << ")" << std::endl;
+    ENGINE_LOG_DEV(std::cout << "Initialized " << symbol << " at $" << initial_price
+                 << " (cores: " << matching_core << "," << md_core
+                 << "," << trade_core << ")" << std::endl;);
     }
     
     return true;
@@ -77,7 +79,7 @@ bool StockExchange::initialize() {
 
 void StockExchange::start() {
     if (running_.load()) {
-        std::cout << "Stock Exchange is already running" << std::endl;
+    ENGINE_LOG_DEV(std::cout << "Stock Exchange is already running" << std::endl;);
         return;
     }
     
@@ -97,8 +99,8 @@ void StockExchange::start() {
         db_manager_->startBackgroundSync();
     }
     
-    std::cout << "Stock Exchange started with " << stocks_.size() 
-              << " stocks, 1 index thread, and 1 database sync thread" << std::endl;
+    ENGINE_LOG_DEV(std::cout << "Stock Exchange started with " << stocks_.size()
+                             << " stocks, 1 index thread, and 1 database sync thread" << std::endl;);
 }
 
 void StockExchange::stop() {
@@ -106,40 +108,78 @@ void StockExchange::stop() {
         return;
     }
     
-    std::cout << "Stopping StockExchange..." << std::endl;
+    ENGINE_LOG_DEV(std::cout << "Stopping StockExchange..." << std::endl;);
     running_.store(false);
     
     // Wake up the database sync thread
     db_sync_cv_.notify_all();
     
-    // Stop all stock threads
+    // Stop all stock threads with progress indicator and timeout protection
+    ENGINE_LOG_DEV(std::cout << "Stopping " << stocks_.size() << " stock threads..." << std::endl;);
+    size_t stopped = 0;
+    
+    // First, prepare all stocks for shutdown (drain queues)
     for (auto& [symbol, stock] : stocks_) {
+        ENGINE_LOG_DEV(std::cout << "  Preparing " << symbol << " for shutdown..." << std::flush;);
+        stock->prepareForShutdown();
+        ENGINE_LOG_DEV(std::cout << " prepared" << std::endl;);
+    }
+    
+    // Give worker threads a moment to see running_=false and exit their loops
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // Now stop/join all stocks
+    for (auto& [symbol, stock] : stocks_) {
+        ENGINE_LOG_DEV(std::cout << "  Stopping " << symbol << "..." << std::flush;);
         stock->stop();
+        ENGINE_LOG_DEV(std::cout << " ✓" << std::endl;);
+        stopped++;
     }
+    std::cout << "✓ All " << stopped << " stock threads stopped" << std::endl;
     
-    // Stop index thread
+    // Stop index thread with timeout
+    std::cout << "✓ Stopping index thread..." << std::flush;
     if (index_thread_.joinable()) {
-        index_thread_.join();
+        auto future = std::async(std::launch::async, [this]() {
+            index_thread_.join();
+        });
+        if (future.wait_for(std::chrono::milliseconds(200)) == std::future_status::timeout) {
+            std::cerr << "Warning: index thread timeout, detaching" << std::endl;
+            index_thread_.detach();
+        }
     }
+    std::cout << " done" << std::endl;
     
-    // Stop database sync
+    // Stop database sync with timeout
+    std::cout << "✓ Stopping database sync..." << std::flush;
     if (db_manager_) {
         db_manager_->stopBackgroundSync();
     }
     
     if (db_sync_thread_.joinable()) {
-        db_sync_thread_.join();
+        auto future = std::async(std::launch::async, [this]() {
+            db_sync_thread_.join();
+        });
+        if (future.wait_for(std::chrono::milliseconds(200)) == std::future_status::timeout) {
+            std::cerr << "Warning: db_sync thread timeout, detaching" << std::endl;
+            db_sync_thread_.detach();
+        }
     }
+    std::cout << " done" << std::endl;
     
-    std::cout << "StockExchange stopped" << std::endl;
+    ENGINE_LOG_DEV(std::cout << "StockExchange stopped" << std::endl;);
     if (db_manager_ && db_manager_->isConnected()) {
         saveToDatabase();
     }
     
-    std::cout << "Stock Exchange stopped" << std::endl;
+    ENGINE_LOG_DEV(std::cout << "Stock Exchange stopped" << std::endl;);
 }
 
 std::string StockExchange::submitOrder(const std::string& symbol, const Order& order) {
+    if (!running_.load(std::memory_order_acquire)) {
+        return "rejected: exchange not running";
+    }
+
     auto it = stocks_.find(symbol);
     if (it == stocks_.end()) {
         return "Symbol not found";
@@ -254,7 +294,11 @@ void StockExchange::indexWorker() {
         broadcastIndex();
         broadcastMarketIndex();
         broadcastAllStocks();
-        std::this_thread::sleep_for(std::chrono::seconds(1)); // Update every second
+        
+        // Sleep in small increments to be responsive to shutdown
+        for (int i = 0; i < 10 && running_.load(); ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
     }
 }
 
@@ -441,7 +485,7 @@ void StockExchange::loadFromDatabase() {
         return;
     }
     
-    std::cout << "Loading stock data from database..." << std::endl;
+    ENGINE_LOG_DEV(std::cout << "Loading stock data from database..." << std::endl;);
     auto stock_data = db_manager_->loadStockData();
     
     // This data will be used during stock initialization

@@ -1,10 +1,12 @@
 #define NOMINMAX
 #include "Stock.h"
+#include "../common/EngineLogging.h"
 #include <random>
 #include <algorithm>
 #include <iostream>
 #include <chrono>
 #include <limits>
+#include <future>
 
 Stock::Stock(const std::string& symbol, double initial_price, 
              int matching_core, int md_core, int trade_core) 
@@ -41,25 +43,61 @@ void Stock::start() {
     CPUAffinity::setHighPriority(market_data_thread_);
     CPUAffinity::setHighPriority(trade_publisher_thread_);
     
-    std::cout << "[" << symbol_ << "] Started with cores: matching=" << matching_engine_core_ 
-              << " md=" << market_data_core_ << " trade=" << trade_publisher_core_ << std::endl;
+    ENGINE_LOG_DEV(std::cout << "[" << symbol_ << "] Started with cores: matching=" << matching_engine_core_
+                             << " md=" << market_data_core_ << " trade=" << trade_publisher_core_ << std::endl;);
 }
 
 void Stock::stop() {
-    running_.store(false, std::memory_order_release);
+    running_.store(false, std::memory_order_seq_cst);  // Stronger memory ordering
     
-    if (matching_thread_.joinable()) {
-        matching_thread_.join();
+    ENGINE_LOG_DEV(std::cout << "[" << symbol_ << "] Stopping threads..." << std::flush;);
+    
+    // Join threads with timeout protection to prevent indefinite hangs
+    auto joinWithTimeout = [](std::thread& t, const char* name, int timeout_ms) {
+        if (t.joinable()) {
+            ENGINE_LOG_DEV(std::cout << " " << name << std::flush;);
+            auto future = std::async(std::launch::async, [&t]() { t.join(); });
+            if (future.wait_for(std::chrono::milliseconds(timeout_ms)) == std::future_status::timeout) {
+                std::cerr << "\nWarning: " << name << " thread timeout, detaching" << std::endl;
+                t.detach();
+            }
+        }
+    };
+    
+    // Increased timeout to 500ms per thread to handle heavy load
+    joinWithTimeout(matching_thread_, "matching", 500);
+    joinWithTimeout(market_data_thread_, "md", 500);
+    joinWithTimeout(trade_publisher_thread_, "trade", 500);
+    
+    ENGINE_LOG_DEV(std::cout << " done" << std::endl;);
+}
+
+void Stock::prepareForShutdown() {
+    // Prevent new orders from being accepted
+    running_.store(false, std::memory_order_release);
+
+    // Aggressively drain queues so consumer threads don't block on heavy backlog
+    OrderMessage* om = nullptr;
+    while ((om = order_queue_.dequeue()) != nullptr) {
+        order_message_pool_.deallocate(om);
     }
-    if (market_data_thread_.joinable()) {
-        market_data_thread_.join();
+
+    TradeMessage* tm = nullptr;
+    while ((tm = trade_queue_.dequeue()) != nullptr) {
+        trade_message_pool_.deallocate(tm);
     }
-    if (trade_publisher_thread_.joinable()) {
-        trade_publisher_thread_.join();
+
+    MarketDataMessage* mm = nullptr;
+    while ((mm = market_data_queue_.dequeue()) != nullptr) {
+        market_data_message_pool_.deallocate(mm);
     }
 }
 
 std::string Stock::submitOrder(const Order& order) {
+    if (!running_.load(std::memory_order_acquire)) {
+        return "rejected: engine not running";
+    }
+
     // Comprehensive order validation
     
     // 1. Validate order ID
@@ -135,13 +173,33 @@ void Stock::matchingEngineWorker() {
     // Set CPU affinity and priority for this thread
     CPUAffinity::setCurrentThreadHighPriority();
     
-    std::cout << "[" << symbol_ << "] Matching engine started on core " 
-              << matching_engine_core_ << std::endl;
+    ENGINE_LOG_DEV(std::cout << "[" << symbol_ << "] Matching engine started on core "
+                             << matching_engine_core_ << std::endl;);
     
-    while (running_.load(std::memory_order_acquire)) {
+    int idle_count = 0;
+    while (true) {
+        if (!running_.load(std::memory_order_seq_cst)) {
+            // Fast drain of any remaining work without processing to honour shutdown
+            int drained = 0;
+            OrderMessage* pending;
+            while ((pending = order_queue_.dequeue()) != nullptr) {
+                order_message_pool_.deallocate(pending);
+                drained++;
+                // Check periodically if we need to exit immediately
+                if (drained % 100 == 0 && drained > 0) {
+                    ENGINE_LOG_DEV(std::cout << "[" << symbol_ << "] Drained " << drained << " orders..." << std::endl;);
+                }
+            }
+            if (drained > 0) {
+                ENGINE_LOG_DEV(std::cout << "[" << symbol_ << "] Drained total " << drained << " orders on shutdown" << std::endl;);
+            }
+            break;
+        }
+
         // Process incoming orders (lock-free)
         OrderMessage* msg = order_queue_.dequeue();
         if (msg) {
+            idle_count = 0;
             switch (msg->type) {
                 case OrderMessage::NEW_ORDER:
                     processNewOrder(msg->order);
@@ -163,9 +221,13 @@ void Stock::matchingEngineWorker() {
             updateMarketData();
         }
         
-        // Yield CPU if no work (busy-wait for ultra-low latency)
+        // Yield CPU if no work - sleep briefly every 1000 idle cycles
         if (!msg) {
-            std::this_thread::yield();
+            if (++idle_count % 1000 == 0) {
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
+            } else {
+                std::this_thread::yield();
+            }
         }
     }
 }
@@ -173,18 +235,32 @@ void Stock::matchingEngineWorker() {
 void Stock::marketDataWorker() {
     CPUAffinity::setCurrentThreadHighPriority();
     
-    std::cout << "[" << symbol_ << "] Market data worker started on core " 
-              << market_data_core_ << std::endl;
+    ENGINE_LOG_DEV(std::cout << "[" << symbol_ << "] Market data worker started on core "
+                             << market_data_core_ << std::endl;);
     
-    while (running_.load(std::memory_order_acquire)) {
+    int idle_count = 0;
+    while (true) {
+        if (!running_.load(std::memory_order_seq_cst)) {
+            if (MarketDataMessage* pending = market_data_queue_.dequeue()) {
+                market_data_message_pool_.deallocate(pending);
+                continue;
+            }
+            break;
+        }
+
         MarketDataMessage* msg = market_data_queue_.dequeue();
         if (msg) {
+            idle_count = 0;
             // Broadcast market data to subscribers
             // In production, this would publish to market data feeds
             messages_sent_.fetch_add(1, std::memory_order_relaxed);
             market_data_message_pool_.deallocate(msg);
         } else {
-            std::this_thread::yield();
+            if (++idle_count % 1000 == 0) {
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
+            } else {
+                std::this_thread::yield();
+            }
         }
     }
 }
@@ -192,20 +268,34 @@ void Stock::marketDataWorker() {
 void Stock::tradePublisherWorker() {
     CPUAffinity::setCurrentThreadHighPriority();
     
-    std::cout << "[" << symbol_ << "] Trade publisher started on core " 
-              << trade_publisher_core_ << std::endl;
+    ENGINE_LOG_DEV(std::cout << "[" << symbol_ << "] Trade publisher started on core "
+                             << trade_publisher_core_ << std::endl;);
     
-    while (running_.load(std::memory_order_acquire)) {
+    int idle_count = 0;
+    while (true) {
+        if (!running_.load(std::memory_order_seq_cst)) {
+            if (TradeMessage* pending = trade_queue_.dequeue()) {
+                trade_message_pool_.deallocate(pending);
+                continue;
+            }
+            break;
+        }
+
         TradeMessage* msg = trade_queue_.dequeue();
         if (msg) {
+            idle_count = 0;
             // Publish trade to external systems
-            std::cout << "[" << symbol_ << "] Trade: " 
-                      << msg->trade.quantity << "@" << msg->trade.price << std::endl;
+            ENGINE_LOG_DEV(std::cout << "[" << symbol_ << "] Trade: "
+                                     << msg->trade.quantity << "@" << msg->trade.price << std::endl;);
             
             trades_executed_.fetch_add(1, std::memory_order_relaxed);
             trade_message_pool_.deallocate(msg);
         } else {
-            std::this_thread::yield();
+            if (++idle_count % 1000 == 0) {
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
+            } else {
+                std::this_thread::yield();
+            }
         }
     }
 }

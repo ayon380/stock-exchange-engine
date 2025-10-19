@@ -241,6 +241,8 @@ public:
     
     void start();
     void stop();
+    // Prepare stock for shutdown: stop accepting new orders and drain queues
+    void prepareForShutdown();
     
     // Lock-free order submission (called from any thread)
     std::string submitOrder(const Order& order);

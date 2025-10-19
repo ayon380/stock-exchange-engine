@@ -2,22 +2,30 @@
 #include "api/TCPServer.h"
 #include "api/SharedMemoryQueue.h"
 #include "api/AuthenticationManager.h"
+#include "common/EngineConfig.h"
+#include "common/EngineTelemetry.h"
+#include "common/EngineLogging.h"
 #include <grpcpp/grpcpp.h>
 #include <iostream>
 #include <iomanip>
 #include <limits>
 #include <memory>
+#include <string>
+#include <algorithm>
 #include <csignal>
 #include <atomic>
 #include <thread>
 #include <chrono>
 #include <sstream>
+#include <condition_variable>
+#include <mutex>
 #include <termios.h>
 #include <unistd.h>
 #include <fcntl.h>
 
 std::atomic<bool> shutdown_requested(false);
 std::atomic<bool> mode_switch_requested(false);
+std::atomic<bool> telemetry_display_paused(false);
 
 // Non-blocking keyboard input detection
 int kbhit() {
@@ -44,6 +52,73 @@ int kbhit() {
     
     return 0;
 }
+
+namespace {
+
+std::string formatDouble(double value, int precision) {
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(precision) << value;
+    return oss.str();
+}
+
+std::string formatLatency(double microseconds) {
+    if (microseconds <= 0.0) {
+        return "n/a";
+    }
+
+    if (microseconds >= 1000.0) {
+        const double ms = microseconds / 1000.0;
+        const int precision = ms >= 10.0 ? 1 : 2;
+        return formatDouble(ms, precision) + " ms";
+    }
+
+    const int precision = microseconds >= 100.0 ? 1 : 2;
+    return formatDouble(microseconds, precision) + " us";
+}
+
+void renderAurexBanner() {
+    static constexpr const char* banner[] = {
+        "      █████╗ ██╗   ██╗██████╗ ███████╗██╗  ██╗",
+        "     ██╔══██╗██║   ██║██╔══██╗██╔════╝██║ ██╔╝",
+        "     ███████║██║   ██║██████╔╝█████╗  █████╔╝ ",
+        "     ██╔══██║██║   ██║██╔═══╝ ██╔══╝  ██╔═██╗ ",
+        "     ██║  ██║╚██████╔╝██║     ███████╗██║  ██╗",
+        "     ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═╝"
+    };
+
+    static constexpr int colors[] = {198, 199, 200, 201, 207, 213};
+
+    for (size_t i = 0; i < sizeof(banner) / sizeof(banner[0]); ++i) {
+        const int color = colors[i % (sizeof(colors) / sizeof(colors[0]))];
+        std::cout << "\033[1;38;5;" << color << "m" << banner[i] << "\033[0m" << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(35));
+    }
+
+    const std::string name = "AUREX";
+    std::cout << "      ";
+    for (size_t i = 0; i < name.size(); ++i) {
+        const int color = 198 + static_cast<int>(i) * 3;
+        std::cout << "\033[1;38;5;" << color << "m" << name[i] << "\033[0m";
+        if (i + 1 < name.size()) {
+            std::cout << ' ';
+        }
+    }
+    std::cout << std::endl;
+    std::cout << "      \033[1;38;5;213mMatching Engine\033[0m" << std::endl;
+    std::cout << std::endl;
+}
+
+void printMinimalInstructions(const std::string& server_address, const std::string& tcp_address,
+                              uint16_t tcp_port, const std::string& shm_name) {
+    std::cout << "Minimal telemetry mode active" << std::endl;
+    std::cout << "Endpoints: gRPC=" << server_address
+              << " | TCP=" << tcp_address << ':' << tcp_port
+              << " | SHM='" << shm_name << "'" << std::endl;
+    std::cout << "Press 'E' for admin tasks. Launch with -dev for verbose logs." << std::endl;
+    std::cout << std::endl;
+}
+
+} // namespace
 
 // Admin mode functions
 void displayAdminMenu() {
@@ -257,8 +332,16 @@ void signalHandler(int signal) {
 }
 #endif
 
-int main() {
-    // Set up signal handlers for graceful shutdown
+int main(int argc, char* argv[]) {
+    bool dev_mode = false;
+    for (int i = 1; i < argc; ++i) {
+        std::string arg(argv[i]);
+        if (arg == "-dev" || arg == "--dev") {
+            dev_mode = true;
+        }
+    }
+    engine_config::setDevMode(dev_mode);
+
 #ifdef _WIN32
     if (!SetConsoleCtrlHandler(consoleCtrlHandler, TRUE)) {
         std::cerr << "Failed to set console control handler" << std::endl;
@@ -269,158 +352,231 @@ int main() {
     sa.sa_handler = signalHandler;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
-    
+
     if (sigaction(SIGINT, &sa, nullptr) == -1) {
         std::cerr << "Failed to set SIGINT handler" << std::endl;
         return -1;
     }
-    
+
     if (sigaction(SIGTERM, &sa, nullptr) == -1) {
         std::cerr << "Failed to set SIGTERM handler" << std::endl;
         return -1;
     }
 #endif
-    
+
     std::string server_address("0.0.0.0:50051");
-    
-    // Database connection string (modify as needed)
     std::string db_connection = "host=localhost port=5432 dbname=stockexchange user=myuser password=mypassword";
-    
-    // Initialize gRPC server with database connection
+
     GRPCServer service(db_connection);
-    
+
     if (!service.initialize()) {
         std::cerr << "Failed to initialize gRPC service" << std::endl;
         return -1;
     }
-    
-    // Start the stock exchange engine
+
     service.start();
-    
-    // Initialize Authentication Manager
+
     std::string redis_host = "localhost";
     int redis_port = 6379;
-    auto auth_manager = std::make_unique<AuthenticationManager>(redis_host, redis_port, service.getExchange()->getDatabaseManager());
-    
+    auto auth_manager = std::make_unique<AuthenticationManager>(redis_host, redis_port,
+                                                                 service.getExchange()->getDatabaseManager());
+
     if (!auth_manager->initialize()) {
         std::cerr << "Failed to initialize Authentication Manager" << std::endl;
         return -1;
     }
-    
-    std::cout << "Authentication Manager initialized successfully" << std::endl;
-    
-    // Initialize TCP server for high-performance order submission
+
+    ENGINE_LOG_DEV(std::cout << "Authentication Manager initialized successfully" << std::endl;);
+
     std::string tcp_address("0.0.0.0");
-    uint16_t tcp_port = 50052; // Different port from gRPC
+    uint16_t tcp_port = 50052;
     TCPServer tcp_server(tcp_address, tcp_port, service.getExchange(), auth_manager.get());
-    
-    // Initialize shared memory server for ultra-low latency local clients
+
     std::string shm_name("stock_exchange_orders");
     SharedMemoryOrderServer shm_server(shm_name, service.getExchange());
-    
-    // Set up gRPC server
+
     grpc::ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);
-    
-    // Set max message sizes for streaming
-    builder.SetMaxReceiveMessageSize(4 * 1024 * 1024); // 4MB
-    builder.SetMaxSendMessageSize(4 * 1024 * 1024);    // 4MB
-    
+    builder.SetMaxReceiveMessageSize(4 * 1024 * 1024);
+    builder.SetMaxSendMessageSize(4 * 1024 * 1024);
+
     std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-    std::cout << "\n=== Stock Exchange Server ===" << std::endl;
-    std::cout << "gRPC Server listening on " << server_address << std::endl;
-    std::cout << "TCP Order Server listening on " << tcp_address << ":" << tcp_port << std::endl;
-    std::cout << "Shared Memory Server available at '" << shm_name << "'" << std::endl;
-    std::cout << "Features:" << std::endl;
-    std::cout << "  • High-performance TCP binary protocol for order submission" << std::endl;
-    std::cout << "  • Ultra-low latency shared memory for local clients" << std::endl;
-    std::cout << "  • gRPC streaming for market data, UI, and demo purposes" << std::endl;
-    auto symbols = service.getExchange()->getSymbols();
-    std::ostringstream symbol_stream;
-    for (size_t i = 0; i < symbols.size(); ++i) {
-        symbol_stream << symbols[i];
-        if (i + 1 < symbols.size()) {
-            symbol_stream << ", ";
-        }
+    if (!server) {
+        std::cerr << "Failed to start gRPC server" << std::endl;
+        return -1;
     }
-    std::cout << "  • " << symbols.size() << " Stock symbols (" << symbol_stream.str() << ")" << std::endl;
-    std::cout << "  • Individual threads per stock" << std::endl;
-    std::cout << "  • Real-time streaming market data" << std::endl;
-    std::cout << "  • Market Index (TECH500) - like S&P 500/Sensex" << std::endl;
-    std::cout << "  • Live streaming of all stock prices" << std::endl;
-    std::cout << "  • Top 5 index streaming" << std::endl;
-    std::cout << "  • PostgreSQL integration (30sec sync)" << std::endl;
-    std::cout << "  • Order matching engine" << std::endl;
-    std::cout << "\n📊 TRADING MODE - Exchange is OPEN" << std::endl;
-    std::cout << "Press 'E' to enter ADMIN MODE (close exchange for account management)" << std::endl;
-    std::cout << "Press 'E' twice to EXIT application" << std::endl;
-    std::cout << "=============================" << std::endl;
-    
-    // Start TCP server
+
+    auto symbols = service.getExchange()->getSymbols();
+
+    if (dev_mode) {
+        std::cout << "\n=== Stock Exchange Server ===" << std::endl;
+        std::cout << "Developer mode enabled (-dev). Verbose logging active." << std::endl;
+        std::cout << "gRPC Server listening on " << server_address << std::endl;
+        std::cout << "TCP Order Server listening on " << tcp_address << ":" << tcp_port << std::endl;
+        std::cout << "Shared Memory Server available at '" << shm_name << "'" << std::endl;
+        std::cout << "Features:" << std::endl;
+        std::cout << "  • High-performance TCP binary protocol for order submission" << std::endl;
+        std::cout << "  • Ultra-low latency shared memory for local clients" << std::endl;
+        std::cout << "  • gRPC streaming for market data, UI, and demo purposes" << std::endl;
+        std::ostringstream symbol_stream;
+        for (size_t i = 0; i < symbols.size(); ++i) {
+            symbol_stream << symbols[i];
+            if (i + 1 < symbols.size()) {
+                symbol_stream << ", ";
+            }
+        }
+        std::cout << "  • " << symbols.size() << " Stock symbols (" << symbol_stream.str() << ")" << std::endl;
+        std::cout << "  • Individual threads per stock" << std::endl;
+        std::cout << "  • Real-time streaming market data" << std::endl;
+        std::cout << "  • Market Index (TECH500) - like S&P 500/Sensex" << std::endl;
+        std::cout << "  • Live streaming of all stock prices" << std::endl;
+        std::cout << "  • Top 5 index streaming" << std::endl;
+        std::cout << "  • PostgreSQL integration (30sec sync)" << std::endl;
+        std::cout << "  • Order matching engine" << std::endl;
+    }
+
     tcp_server.start();
-    
-    // Start shared memory server
+
     if (!shm_server.start()) {
         std::cerr << "Warning: Failed to start shared memory server" << std::endl;
     }
-    
-    // Start account sync thread (syncs every 30 seconds)
+
     std::atomic<bool> sync_running(true);
-    std::thread account_sync_thread([&auth_manager, &sync_running]() {
-        while (sync_running.load()) {
-            std::this_thread::sleep_for(std::chrono::seconds(30));
-            if (sync_running.load()) {
-                auth_manager->syncAllAccountsToDatabase();
+    std::mutex sync_mutex;
+    std::condition_variable sync_cv;
+    std::thread account_sync_thread([&auth_manager, &sync_running, &sync_mutex, &sync_cv]() {
+        std::unique_lock<std::mutex> lock(sync_mutex);
+        while (sync_running.load(std::memory_order_relaxed)) {
+            const bool exit_requested = sync_cv.wait_for(
+                lock,
+                std::chrono::seconds(30),
+                [&sync_running]() { return !sync_running.load(std::memory_order_relaxed); });
+
+            if (exit_requested) {
+                break;
             }
+
+            lock.unlock();
+            auth_manager->syncAllAccountsToDatabase();
+            lock.lock();
         }
     });
-    
-    std::cout << "💾 Account balance sync: Every 30 seconds to database" << std::endl;
-    
-    // Main loop - handle mode switching
+
+    ENGINE_LOG_DEV(std::cout << "💾 Account balance sync: Every 30 seconds to database" << std::endl;);
+
+    std::thread telemetry_thread;
+    bool telemetry_thread_started = false;
+
+    if (!dev_mode) {
+        telemetry_display_paused.store(true, std::memory_order_relaxed);
+
+        telemetry_thread = std::thread([]() {
+            auto& telemetry = EngineTelemetry::instance();
+            telemetry.snapshot();
+            size_t previous_length = 0;
+
+            while (!shutdown_requested.load(std::memory_order_relaxed)) {
+                if (telemetry_display_paused.load(std::memory_order_relaxed)) {
+                    if (previous_length != 0) {
+                        std::cout << "\r" << std::string(previous_length, ' ') << "\r" << std::flush;
+                        previous_length = 0;
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+                    continue;
+                }
+
+                auto snapshot = telemetry.snapshot();
+                std::string line = "Orders " + std::to_string(snapshot.totalOrders);
+                const double ops = snapshot.ordersPerSecond;
+                if (ops < 0.05) {
+                    line += " (0/s)";
+                } else {
+                    const int precision = ops >= 10.0 ? 0 : 1;
+                    line += " (" + formatDouble(ops, precision) + "/s)";
+                }
+                line += " | Avg Lat " + formatLatency(snapshot.averageLatencyUs);
+                line += " | CPU " + formatDouble(std::max(0.0, snapshot.cpuPercent), 1) + "%";
+                line += " | Mem " + formatDouble(snapshot.memoryMb, 1) + " MB";
+
+                const size_t line_length = line.size();
+                std::cout << "\r" << line;
+                if (line_length < previous_length) {
+                    std::cout << std::string(previous_length - line_length, ' ');
+                }
+                std::cout << std::flush;
+                previous_length = line_length;
+
+                for (int i = 0; i < 10; ++i) {
+                    if (shutdown_requested.load(std::memory_order_relaxed) ||
+                        telemetry_display_paused.load(std::memory_order_relaxed)) {
+                        break;
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+            }
+
+            std::cout << "\r" << std::string(previous_length, ' ') << "\r" << std::flush;
+        });
+        telemetry_thread_started = true;
+
+        renderAurexBanner();
+        printMinimalInstructions(server_address, tcp_address, tcp_port, shm_name);
+        telemetry_display_paused.store(false, std::memory_order_relaxed);
+    } else {
+        std::cout << "\n📊 TRADING MODE - Exchange is OPEN" << std::endl;
+        std::cout << "Press 'E' to enter ADMIN MODE (close exchange for account management)" << std::endl;
+        std::cout << "Press 'E' twice to EXIT application" << std::endl;
+        std::cout << "=============================" << std::endl;
+    }
+
     bool in_trading_mode = true;
     bool e_pressed_once = false;
     auto last_e_press = std::chrono::steady_clock::now();
-    
-    while (!shutdown_requested.load()) {
+
+    while (!shutdown_requested.load(std::memory_order_relaxed)) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        
-        // Check for keyboard input
+
         if (kbhit()) {
             char ch = getchar();
             if (ch == 'E' || ch == 'e') {
                 auto now = std::chrono::steady_clock::now();
                 auto time_since_last_press = std::chrono::duration_cast<std::chrono::seconds>(now - last_e_press).count();
-                
+
                 if (e_pressed_once && time_since_last_press < 3) {
-                    // Second 'E' press within 3 seconds - EXIT
+                    telemetry_display_paused.store(true, std::memory_order_relaxed);
+                    std::cout << std::endl;
                     std::cout << "\n👋 Double E detected - Shutting down application..." << std::endl;
-                    shutdown_requested.store(true);
+                    shutdown_requested.store(true, std::memory_order_relaxed);
                     break;
                 } else {
-                    // First 'E' press or too long since last press
                     e_pressed_once = true;
                     last_e_press = now;
-                    
+
                     if (in_trading_mode) {
-                        // Switch to ADMIN mode
+                        telemetry_display_paused.store(true, std::memory_order_relaxed);
+                        std::cout << std::endl;
                         std::cout << "\n🔒 Stopping exchange for ADMIN MODE..." << std::endl;
-                        
-                        // Stop trading servers
+
+                        std::cout << "  Stopping TCP server..." << std::flush;
                         tcp_server.stop();
+                        std::cout << " ✓" << std::endl;
+                        
+                        std::cout << "  Stopping shared memory server..." << std::flush;
                         shm_server.stop();
+                        std::cout << " ✓" << std::endl;
+                        
+                        std::cout << "  Stopping exchange engine (5 stocks, index, db sync)..." << std::flush;
                         service.stop();
-                        
+                        std::cout << " ✓" << std::endl;
+
                         std::cout << "✅ Exchange stopped. All trading suspended." << std::endl;
-                        
+
                         in_trading_mode = false;
-                        
-                        // Enter admin mode
+
                         runAdminMode(service.getExchange()->getDatabaseManager());
-                        
-                        if (!shutdown_requested.load()) {
-                            // Returning from admin mode - restart trading
+
+                        if (!shutdown_requested.load(std::memory_order_relaxed)) {
                             std::cout << "\n🔓 Restarting exchange for TRADING MODE..." << std::endl;
                             service.start();
                             tcp_server.start();
@@ -428,57 +584,69 @@ int main() {
                                 std::cerr << "Warning: Failed to restart shared memory server" << std::endl;
                             }
                             std::cout << "✅ Exchange restarted. Trading resumed." << std::endl;
-                            std::cout << "\n📊 TRADING MODE - Exchange is OPEN" << std::endl;
-                            std::cout << "Press 'E' to enter ADMIN MODE" << std::endl;
-                            std::cout << "Press 'E' twice to EXIT application" << std::endl;
+                            if (dev_mode) {
+                                std::cout << "\n📊 TRADING MODE - Exchange is OPEN" << std::endl;
+                                std::cout << "Press 'E' to enter ADMIN MODE" << std::endl;
+                                std::cout << "Press 'E' twice to EXIT application" << std::endl;
+                            } else {
+                                std::cout << "\nTrading mode resumed." << std::endl;
+                                telemetry_display_paused.store(false, std::memory_order_relaxed);
+                            }
                             in_trading_mode = true;
                         }
-                        
-                        e_pressed_once = false; // Reset after mode switch
+
+                        e_pressed_once = false;
+
+                        if (in_trading_mode && !dev_mode) {
+                            telemetry_display_paused.store(false, std::memory_order_relaxed);
+                        }
                     }
                 }
             }
         }
-        
-        // Reset E press flag after 3 seconds
+
         auto now = std::chrono::steady_clock::now();
         auto time_since_last_press = std::chrono::duration_cast<std::chrono::seconds>(now - last_e_press).count();
         if (e_pressed_once && time_since_last_press >= 3) {
             e_pressed_once = false;
         }
     }
-    
+
+    telemetry_display_paused.store(true, std::memory_order_relaxed);
     std::cout << "\nShutdown signal received. Gracefully shutting down..." << std::endl;
-    
-    // Stop account sync thread
+
     std::cout << "Stopping account sync thread..." << std::endl;
-    sync_running.store(false);
+    sync_running.store(false, std::memory_order_relaxed);
+    sync_cv.notify_all();
     if (account_sync_thread.joinable()) {
         account_sync_thread.join();
     }
     std::cout << "Account sync thread stopped" << std::endl;
-    
-    // Final sync before shutdown
+
     std::cout << "Performing final account sync to database..." << std::endl;
     auth_manager->syncAllAccountsToDatabase();
     std::cout << "Final sync complete" << std::endl;
-    
-    // Clean shutdown
+
     if (in_trading_mode) {
         std::cout << "Stopping TCP server..." << std::endl;
         tcp_server.stop();
         std::cout << "TCP server stopped" << std::endl;
-        
+
         shm_server.stop();
         std::cout << "Shared memory server stopped" << std::endl;
-        
+
         service.stop();
         std::cout << "gRPC service stopped" << std::endl;
     }
-    
-    // Then shutdown the gRPC server
+
     server->Shutdown();
-    
+
     std::cout << "Stock Exchange Server shut down successfully" << std::endl;
+
+    if (telemetry_thread_started && telemetry_thread.joinable()) {
+        shutdown_requested.store(true, std::memory_order_relaxed);
+        telemetry_thread.join();
+    }
+
     return 0;
 }

@@ -1,4 +1,6 @@
 #include "GRPCServer.h"
+#include "common/EngineTelemetry.h"
+#include "common/EngineLogging.h"
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -80,10 +82,10 @@ grpc::Status GRPCServer::SubmitOrder(grpc::ServerContext* context,
     (void)context;
     auto grpc_start = std::chrono::high_resolution_clock::now();
 
-    std::cout << "Received order: " << request->order_id()
-              << " type: " << request->type()
-              << " qty: " << request->quantity()
-              << " price: " << request->price() << std::endl;
+    ENGINE_LOG_DEV(std::cout << "Received order: " << request->order_id()
+                             << " type: " << request->type()
+                             << " qty: " << request->quantity()
+                             << " price: " << request->price() << std::endl;);
 
     response->set_order_id(request->order_id());
     response->set_accepted(true);
@@ -136,6 +138,8 @@ grpc::Status GRPCServer::SubmitOrder(grpc::ServerContext* context,
         max_latency = std::max(max_latency, total_us);
         total_sum += total_us;
     }
+
+    EngineTelemetry::instance().recordOrder(total_us);
 
     // Log detailed metrics every 1000 orders
     if (current_count % 1000 == 0) {

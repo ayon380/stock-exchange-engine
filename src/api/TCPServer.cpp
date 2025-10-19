@@ -1,8 +1,11 @@
 #include "TCPServer.h"
+#include "common/EngineTelemetry.h"
+#include "common/EngineLogging.h"
 #include <iostream>
 #include <cstring>
 #include <chrono>
 #include <condition_variable>
+#include <future>
 #include <boost/bind/bind.hpp>
 #ifdef _WIN32
 #include <intrin.h>
@@ -281,7 +284,8 @@ void TCPConnection::processLoginRequest(const std::vector<char>& data) {
     // Extract JWT token
     std::string jwt_token(data.data() + sizeof(BinaryLoginRequestBody), token_len);
     
-    std::cout << "TCP Connection: Processing login request for connection " << connection_id_ << std::endl;
+    ENGINE_LOG_DEV(std::cout << "TCP Connection: Processing login request for connection "
+                             << connection_id_ << std::endl;);
     
     // Authenticate with AuthenticationManager
     AuthResult auth_result = auth_manager_->authenticateConnection(connection_id_, jwt_token);
@@ -331,7 +335,8 @@ void TCPConnection::processLoginRequest(const std::vector<char>& data) {
         std::cerr << "TCP Connection: Authentication failed for connection " << connection_id_ << ": " << message << std::endl;
         stop();
     } else {
-        std::cout << "TCP Connection: Authentication successful for connection " << connection_id_ << std::endl;
+    ENGINE_LOG_DEV(std::cout << "TCP Connection: Authentication successful for connection "
+                 << connection_id_ << std::endl;);
     }
 }
 
@@ -469,6 +474,8 @@ void TCPConnection::processOrderRequest(const std::vector<char>& data) {
         }
     }
 
+    EngineTelemetry::instance().recordOrder(should_measure ? engine_us : -1);
+
     // Update account position if order was accepted
     bool accepted = (result == "accepted");
     if (accepted) {
@@ -537,7 +544,7 @@ TCPServer::TCPServer(const std::string& address, uint16_t port, StockExchange* e
         throw std::runtime_error("Failed to listen: " + ec.message());
     }
     
-    std::cout << "TCP Server: Successfully initialized on " << address << ":" << port << std::endl;
+    ENGINE_LOG_DEV(std::cout << "TCP Server: Successfully initialized on " << address << ":" << port << std::endl;);
 }
 
 TCPServer::~TCPServer() {
@@ -547,7 +554,7 @@ TCPServer::~TCPServer() {
 void TCPServer::start() {
     if (running_.exchange(true)) return;
 
-    std::cout << "Starting TCP order server..." << std::endl;
+    ENGINE_LOG_DEV(std::cout << "Starting TCP order server..." << std::endl;);
     
     try {
         // Reset io_context in case it was stopped before
@@ -558,20 +565,20 @@ void TCPServer::start() {
             boost::asio::make_work_guard(io_context_));
 
         // Start accepting connections BEFORE starting worker threads
-        std::cout << "TCP Server: Starting to accept connections" << std::endl;
+    ENGINE_LOG_DEV(std::cout << "TCP Server: Starting to accept connections" << std::endl;);
         acceptConnection();
 
         // Start worker threads
         unsigned int num_threads = std::thread::hardware_concurrency();
         if (num_threads == 0) num_threads = 4;
 
-        std::cout << "TCP Server: Starting " << num_threads << " worker threads" << std::endl;
+    ENGINE_LOG_DEV(std::cout << "TCP Server: Starting " << num_threads << " worker threads" << std::endl;);
 
         for (unsigned int i = 0; i < num_threads; ++i) {
             worker_threads_.emplace_back(&TCPServer::workerThread, this);
         }
         
-        std::cout << "TCP Server: Successfully started and accepting connections" << std::endl;
+    ENGINE_LOG_DEV(std::cout << "TCP Server: Successfully started and accepting connections" << std::endl;);
         
     } catch (const std::exception& e) {
         std::cerr << "TCP Server: Failed to start: " << e.what() << std::endl;
@@ -583,16 +590,24 @@ void TCPServer::start() {
 void TCPServer::stop() {
     if (!running_.exchange(false)) return;
 
-    std::cout << "Stopping TCP order server..." << std::endl;
+    ENGINE_LOG_DEV(std::cout << "Stopping TCP order server..." << std::endl;);
 
     // Release work guard first to allow io_context to stop
     work_guard_.reset();
     
     io_context_.stop();
 
+    // Join worker threads with timeout protection
     for (auto& thread : worker_threads_) {
         if (thread.joinable()) {
-            thread.join();
+            auto future = std::async(std::launch::async, [&thread]() {
+                thread.join();
+            });
+            
+            if (future.wait_for(std::chrono::milliseconds(200)) == std::future_status::timeout) {
+                std::cerr << "Warning: TCP worker thread timeout, detaching" << std::endl;
+                thread.detach();
+            }
         }
     }
 
@@ -609,9 +624,9 @@ void TCPServer::acceptConnection() {
                     std::cerr << "TCP Server: Accept error: " << error.message() << std::endl;
                 }
             } else if (running_.load()) {
-                std::cout << "TCP Server: New client connected from " 
-                         << socket.remote_endpoint().address().to_string() 
-                         << ":" << socket.remote_endpoint().port() << std::endl;
+                ENGINE_LOG_DEV(std::cout << "TCP Server: New client connected from "
+                                         << socket.remote_endpoint().address().to_string()
+                                         << ":" << socket.remote_endpoint().port() << std::endl;);
                          
                 auto connection = std::make_shared<TCPConnection>(std::move(socket), exchange_, auth_manager_);
                 connection->start();

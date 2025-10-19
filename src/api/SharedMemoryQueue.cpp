@@ -1,9 +1,11 @@
 #include "SharedMemoryQueue.h"
 #include "../core_engine/StockExchange.h"
+#include "common/EngineTelemetry.h"
 #include <iostream>
 #include <thread>
 #include <chrono>
 #include <memory>
+#include <future>
 
 using namespace boost::interprocess;
 
@@ -245,8 +247,19 @@ bool SharedMemoryOrderServer::start() {
 void SharedMemoryOrderServer::stop() {
     if (!running_.exchange(false)) return;
 
+    // Wait for worker thread with timeout to prevent hang
     if (worker_thread_.joinable()) {
-        worker_thread_.join();
+        // Give worker thread 200ms to finish processing and exit
+        auto future = std::async(std::launch::async, [this]() {
+            if (worker_thread_.joinable()) {
+                worker_thread_.join();
+            }
+        });
+        
+        if (future.wait_for(std::chrono::milliseconds(200)) == std::future_status::timeout) {
+            std::cerr << "Warning: SharedMemory worker thread timeout, detaching" << std::endl;
+            worker_thread_.detach();
+        }
     }
 
     queue_.reset();
@@ -285,6 +298,7 @@ void SharedMemoryOrderServer::processOrders() {
 
                 // Submit order
                 exchange_->submitOrder(symbol, core_order);
+                EngineTelemetry::instance().recordOrder();
             }
         } else {
             if (!running_.load()) {
