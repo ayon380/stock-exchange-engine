@@ -22,34 +22,80 @@
 #include <termios.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <cstdlib>
+#include <cerrno>
+#include <cstdio>
+#include <stdexcept>
 
 std::atomic<bool> shutdown_requested(false);
 std::atomic<bool> mode_switch_requested(false);
 std::atomic<bool> telemetry_display_paused(false);
 
+namespace {
+
+bool stdin_is_tty() {
+    static const bool is_tty = (isatty(STDIN_FILENO) == 1);
+    return is_tty;
+}
+
+std::string getEnvOrDefault(const char* name, const std::string& fallback) {
+    if (!name) {
+        return fallback;
+    }
+    const char* value = std::getenv(name);
+    if (value && *value != '\0') {
+        return value;
+    }
+    return fallback;
+}
+
+} // namespace
+
 // Non-blocking keyboard input detection
 int kbhit() {
-    struct termios oldt, newt;
-    int ch;
-    int oldf;
-    
-    tcgetattr(STDIN_FILENO, &oldt);
-    newt = oldt;
+    if (!stdin_is_tty()) {
+        return 0;
+    }
+
+    struct termios oldt;
+    if (tcgetattr(STDIN_FILENO, &oldt) == -1) {
+        if (errno != ENOTTY) {
+            std::perror("tcgetattr");
+        }
+        return 0;
+    }
+
+    struct termios newt = oldt;
     newt.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
-    
-    ch = getchar();
-    
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) == -1) {
+        std::perror("tcsetattr");
+        return 0;
+    }
+
+    int oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+    if (oldf == -1) {
+        std::perror("fcntl(F_GETFL)");
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+        return 0;
+    }
+
+    if (fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK) == -1) {
+        std::perror("fcntl(F_SETFL)");
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+        return 0;
+    }
+
+    int ch = getchar();
+
+    // Always attempt to restore state
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
     fcntl(STDIN_FILENO, F_SETFL, oldf);
-    
-    if(ch != EOF) {
+
+    if (ch != EOF) {
         ungetc(ch, stdin);
         return 1;
     }
-    
+
     return 0;
 }
 
@@ -364,8 +410,12 @@ int main(int argc, char* argv[]) {
     }
 #endif
 
-    std::string server_address("0.0.0.0:50051");
-    std::string db_connection = "host=localhost port=5432 dbname=stockexchange user=myuser password=mypassword";
+    std::string server_address = getEnvOrDefault("AUREX_GRPC_ADDRESS", "0.0.0.0:50051");
+    std::string db_connection = getEnvOrDefault("AUREX_DB_DSN", "");
+    if (db_connection.empty()) {
+        std::cerr << "Missing database connection string. Set AUREX_DB_DSN to a valid PostgreSQL DSN." << std::endl;
+        return -1;
+    }
 
     GRPCServer service(db_connection);
 
@@ -376,8 +426,16 @@ int main(int argc, char* argv[]) {
 
     service.start();
 
-    std::string redis_host = "localhost";
+    std::string redis_host = getEnvOrDefault("AUREX_REDIS_HOST", "localhost");
     int redis_port = 6379;
+    if (const std::string redis_port_env = getEnvOrDefault("AUREX_REDIS_PORT", ""); !redis_port_env.empty()) {
+        try {
+            redis_port = std::stoi(redis_port_env);
+        } catch (const std::exception&) {
+            std::cerr << "Invalid AUREX_REDIS_PORT value: '" << redis_port_env << "'" << std::endl;
+            return -1;
+        }
+    }
     auto auth_manager = std::make_unique<AuthenticationManager>(redis_host, redis_port,
                                                                  service.getExchange()->getDatabaseManager());
 
@@ -388,12 +446,26 @@ int main(int argc, char* argv[]) {
 
     ENGINE_LOG_DEV(std::cout << "Authentication Manager initialized successfully" << std::endl;);
 
-    std::string tcp_address("0.0.0.0");
+    service.getExchange()->setAuthenticationManager(auth_manager.get());
+
+    std::string tcp_address = getEnvOrDefault("AUREX_TCP_ADDRESS", "0.0.0.0");
     uint16_t tcp_port = 50052;
+    if (const std::string tcp_port_env = getEnvOrDefault("AUREX_TCP_PORT", ""); !tcp_port_env.empty()) {
+        try {
+            int parsed_port = std::stoi(tcp_port_env);
+            if (parsed_port <= 0 || parsed_port > 65535) {
+                throw std::out_of_range("port range");
+            }
+            tcp_port = static_cast<uint16_t>(parsed_port);
+        } catch (const std::exception&) {
+            std::cerr << "Invalid AUREX_TCP_PORT value: '" << tcp_port_env << "'" << std::endl;
+            return -1;
+        }
+    }
     TCPServer tcp_server(tcp_address, tcp_port, service.getExchange(), auth_manager.get());
 
-    std::string shm_name("stock_exchange_orders");
-    SharedMemoryOrderServer shm_server(shm_name, service.getExchange());
+    std::string shm_name = getEnvOrDefault("AUREX_SHM_NAME", "stock_exchange_orders");
+    SharedMemoryOrderServer shm_server(shm_name, service.getExchange(), auth_manager.get());
 
     grpc::ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());

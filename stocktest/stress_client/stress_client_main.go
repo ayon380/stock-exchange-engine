@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
+	"os"
+	"os/signal"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -12,8 +16,7 @@ func main() {
 	config := StressConfig{}
 
 	flag.StringVar(&config.FrontendURL, "frontend", "http://localhost:3000", "Frontend URL")
-	flag.StringVar(&config.EngineAddr, "engine", "localhost:50051", "Engine address (host:port)")
-	flag.BoolVar(&config.UseGRPC, "grpc", true, "Use gRPC instead of TCP")
+	flag.StringVar(&config.EngineAddr, "engine", "localhost:50052", "Engine TCP address (host:port)")
 	flag.IntVar(&config.NumUsers, "users", 10, "Number of users to create")
 	flag.IntVar(&config.OrdersPerUser, "orders", 100, "Orders per user")
 	flag.IntVar(&config.Concurrency, "concurrency", 50, "Concurrent users")
@@ -25,25 +28,73 @@ func main() {
 
 	log.Printf("Starting stress test with config: %+v", config)
 
+	// Setup graceful shutdown with immediate exit
+	ctx, cancel := context.WithCancel(context.Background())
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Track if we should force exit
+	forceExit := false
+
+	// Handle shutdown signal - IMMEDIATE EXIT
+	go func() {
+		<-sigChan
+		log.Println("\n🛑 Received shutdown signal, exiting immediately...")
+		cancel()
+		forceExit = true
+
+		// Wait 500ms for graceful cleanup, then force exit
+		time.Sleep(500 * time.Millisecond)
+		log.Println("Force exiting...")
+		os.Exit(0)
+	}()
+
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, config.Concurrency)
 
 	startTime := time.Now()
 
 	// Start live reporter
-	go startLiveReporter(config, startTime)
+	go startLiveReporter(config, startTime, ctx)
 
-	for i := 1; i <= config.NumUsers; i++ {
-		wg.Add(1)
-		semaphore <- struct{}{} // Acquire
+	// Launch workers
+	workersDone := make(chan bool, 1)
+	go func() {
+		for i := 1; i <= config.NumUsers; i++ {
+			// Check if we should exit early
+			if forceExit {
+				break
+			}
 
-		go func(userID int) {
-			defer func() { <-semaphore }() // Release
-			userWorker(config, userID, &wg)
-		}(i)
+			wg.Add(1)
+			semaphore <- struct{}{} // Acquire
+
+			go func(userID int) {
+				defer func() { <-semaphore }() // Release
+				userWorkerWithContext(ctx, config, userID, &wg)
+			}(i)
+		}
+
+		wg.Wait()
+		workersDone <- true
+	}()
+
+	// Wait for completion or cancellation
+	select {
+	case <-workersDone:
+		// Normal completion
+	case <-ctx.Done():
+		// Cancelled by signal
+		log.Println("Waiting for active connections to close...")
+		// Give 500ms for cleanup
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	wg.Wait()
+	if forceExit {
+		log.Println("Exited by user signal")
+		os.Exit(0)
+	}
 
 	duration := time.Since(startTime)
 

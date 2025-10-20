@@ -1,0 +1,1386 @@
+Order execution time: 0 microseconds for order order_1760949961777811000_1115529845440069521
+Total trip time: 47 microseconds
+Order execution time: 0 microseconds for order order_1760949961789659000_1992886327985872778
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760949961800958000_1417637252964895601
+Total trip time: 16 microseconds
+Order execution time: 0 microseconds for order order_1760949961834261000_5248836719787606769
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949961882346000_482093438429371247
+Total trip time: 16 microseconds
+Order execution time: 0 microseconds for order order_1760949961904315000_8835030989657412435
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760949961915031000_4689562001623990032
+Total trip time: 15 microseconds
+Order execution time: 0 microseconds for order order_1760949961950394000_4670132639291219999
+Total trip time: 15 microseconds
+Order execution time: 0 microseconds for order order_1760949961963939000_7243624660076526781
+Total trip time: 23 microseconds
+Order execution time: 0 microseconds for order order_1760949961990992000_8937763874151045574
+Total trip time: 22 microseconds
+Order execution time: 0 microseconds for order order_1760949962005563000_3788796473796293663
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760949962065947000_958150047319757392
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949962166997000_6818453058496295926
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949962225513000_6008323268011557791
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949962246435000_5461020771422047166
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949962285407000_5793663115874969093
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949962305108000_1117804536213520914
+Total trip time: 20 microseconds
+Order execution time: 0 microseconds for order order_1760949962413789000_5717339514913593162
+Total trip time: 19 microseconds
+Order execution time: 0 microseconds for order order_1760949962434406000_7672966217508786544
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760949962499724000_7968402388107660335
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949962521659000_7376864236714069730
+Total trip time: 21 microseconds
+Order execution time: 0 microseconds for order order_1760949962565151000_751268070761519249
+Total trip time: 15 microseconds
+Order execution time: 0 microseconds for order order_1760949962609926000_6448944755170951
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949962655589000_3020111993353063926
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949962677947000_780071410826188069
+Total trip time: 20 microseconds
+Order execution time: 0 microseconds for order order_1760949962749604000_5600131383756823585
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949962822382000_2068915736304802150
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949962846705000_7848412392696597080
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949962926587000_2651799762576297328
+Total trip time: 15 microseconds
+Order execution time: 0 microseconds for order order_1760949963008212000_7239830155629263462
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760949963033673000_6870355862065095555
+Total trip time: 21 microseconds
+Order execution time: 0 microseconds for order order_1760949963060679000_1921316162759386299
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949963088434000_4711892100790442452
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949963114380000_1620783475335352871
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949963172034000_7553904887706048537
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760949963229074000_2956863913204434813
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949963257255000_7584380373671263104
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949963376326000_5777223402997587498
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949963433456000_269019355171831421
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760949963538321000_1190531153649938632
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949963627473000_4638685711842230812
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949963688796000_698294350727596359
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760949963719233000_3410753791500511552
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760949963941723000_3472116474357365507
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949963974207000_307657663301509660
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949964007918000_1009182846462605578
+Total trip time: 4 microseconds
+Order execution time: 0 microseconds for order order_1760949964074575000_189209905806219412
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760949964108521000_4847530827969400422
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760949964176813000_6395228741853396558
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949964281676000_4017551108068380054
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949964352402000_8239553301405483053
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949964388745000_3683953237645179424
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949964424804000_2812059425129193270
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949964461297000_4637741242410153120
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949964498115000_7279362522653772719
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760949964534842000_4427355775614167240
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949964572137000_1109269189252692421
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949964647866000_6248794769757501900
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949964762970000_7261423056040424766
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949964826421000_8330110031094250988
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760949964951746000_5805459487862233782
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760949964991625000_1062850917905490684
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949965072021000_4759054275754309124
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949965235087000_3197046197569444739
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949965277075000_1641214578959931732
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949965362434000_1625288720926855399
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949965404376000_7305284203742042051
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949965620549000_4242157928256997593
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760949965709411000_9024486738717904945
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949965798744000_4580920276163808567
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949965844693000_6304526186800471305
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760949965890082000_1867513066411900665
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949965982026000_7362484754825197386
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949966075343000_1986787263866350122
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949966172194000_3454468015845787255
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949966273274000_1412226544124883147
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949966323100000_6063294267497293761
+Total trip time: 21 microseconds
+Order execution time: 0 microseconds for order order_1760949966372704000_8810470571024553059
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949966422796000_5772237194356702918
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949966522647000_3266643458239458128
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949966623728000_2795316839711046604
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949966674563000_7312740756322155222
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949966777143000_2800586881256060178
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949967090994000_8017094041768775866
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949967144126000_5493225976538205794
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949967229454000_1339243501293875765
+Total trip time: 12 microseconds
+Order execution time: 2 microseconds for order order_1760949967283256000_2544784716473802066
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760949967392371000_7302846480528687281
+Total trip time: 20 microseconds
+Order execution time: 0 microseconds for order order_1760949967502370000_8595546478726732646
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949967560653000_7765984378092321912
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760949967626044000_4730071497198330912
+Total trip time: 18 microseconds
+Order execution time: 0 microseconds for order order_1760949967865403000_3976945466448655170
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760949967924790000_235951842773667381
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949967983846000_7663442421488625686
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760949968101313000_7656275321609555442
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949968219734000_3805664235328890299
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949968279186000_1116378045881928922
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760949968456496000_3291543435019178889
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949968575825000_4714048292739447323
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760949968635730000_3465778328058522493
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760949968695785000_8339601013339943299
+Total trip time: 6 microseconds
+Order execution time: 0 microseconds for order order_1760949968818334000_7302147245465453841
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760949968880001000_7510975214031609489
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760949969003799000_6718655307555322143
+Total trip time: 5 microseconds
+Order execution time: 0 microseconds for order order_1760949969126432000_615190031131320968
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760949969189014000_2251267469067700246
+Total trip time: 5 microseconds
+Order execution time: 0 microseconds for order order_1760949969442571000_516476355546578336
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949969764967000_100006865457798292
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760949970033161000_3830016582201719981
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760949970099441000_3283707564330845259
+Total trip time: 4 microseconds
+Order execution time: 0 microseconds for order order_1760949970166172000_1436785568036283411
+Total trip time: 5 microseconds
+Order execution time: 0 microseconds for order order_1760949970233351000_3669703386077136015
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760949970435872000_62813693251398673
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760949970645231000_8759089896154215026
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760949970920088000_6607194685800065116
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760949970988947000_9044808941364982634
+Total trip time: 6 microseconds
+Order execution time: 0 microseconds for order order_1760949971208098000_718502494801059247
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760949971425966000_1802592905139038166
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949971498833000_956599504877974522
+Total trip time: 4 microseconds
+Order execution time: 0 microseconds for order order_1760949971571484000_2189445611632341833
+Total trip time: 4 microseconds
+Order execution time: 0 microseconds for order order_1760949971643554000_4172607159765888414
+Total trip time: 5 microseconds
+Order execution time: 0 microseconds for order order_1760949971934256000_1110467669665346036
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760949972008215000_4252837741133768469
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760949972082991000_3579776140490401959
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949972242744000_6997915241555378394
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949972321186000_2891364826952876298
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949972477910000_3251205309220359729
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949972555421000_5893900957180404167
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760949972710266000_2024369881018491311
+Total trip time: 9 microseconds
+Order execution time: 2 microseconds for order order_1760949973051801000_5580125546868761343
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949973212884000_8288654591855084325
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760949973371157000_515125124657986768
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949973451131000_744274110323801904
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760949973531134000_5049319891498425409
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949973611253000_5742098314694339605
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949973691738000_2193410207831717769
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949973772372000_3902832648674718915
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949973853877000_1021041105391408294
+Total trip time: 10 microseconds
+Order execution time: 2 microseconds for order order_1760949974180663000_2415717783461255898
+Total trip time: 12 microseconds
+Order execution time: 3 microseconds for order order_1760949974847878000_6666266719383876615
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949974932356000_7236475231140229897
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949975018527000_6629241984386102233
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949975103510000_4404115965765468377
+Total trip time: 10 microseconds
+Order execution time: 2 microseconds for order order_1760949975216036000_4108483633046499572
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949975305298000_8719843579630794450
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760949975623176000_7347571516312485139
+Total trip time: 92 microseconds
+Order execution time: 0 microseconds for order order_1760949975804271000_7526680505160449430
+Total trip time: 20 microseconds
+Order execution time: 0 microseconds for order order_1760949975984186000_3453236969608422449
+Total trip time: 12 microseconds
+Order execution time: 3 microseconds for order order_1760949976252574000_996126070528463115
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949976343626000_1128571452349625294
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949976524499000_1224272332134930769
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760949976614658000_6123536519087161555
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760949976704278000_4006871244315578420
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760949976794195000_6004925491412513492
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949977435312000_2275264890193783088
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949977527566000_3406945865487936672
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949977640096000_4040854060760713279
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760949977739914000_4481298030163085445
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949977832728000_3146668736675578700
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949977925796000_8369818191879711835
+Total trip time: 11 microseconds
+Order execution time: 3 microseconds for order order_1760949978020007000_7888010303111978760
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760949978490601000_2049824395751971853
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949978585135000_7978500808809758798
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760949978776543000_5704581178483843371
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760949978967047000_2911573301465584288
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760949979159728000_5537267045128223636
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949979255875000_6287853893722923280
+Total trip time: 9 microseconds
+Order execution time: 2 microseconds for order order_1760949979352345000_6225477050651842989
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949979742338000_5478192724740891582
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949979840458000_3914150754530176119
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760949980037513000_4735291385153659796
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949980260942000_5050829782093907786
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949980363758000_3456766346757746062
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949980564107000_8559276317027873554
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949980664485000_8085747190332885110
+Total trip time: 12 microseconds
+Order execution time: 2 microseconds for order order_1760949980764574000_7581022998075835200
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949981068055000_1820560805128958316
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760949981272287000_2846549944525821994
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949981374545000_756097574428783269
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949981579548000_2849225797086285464
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949981715926000_6134078510381823928
+Total trip time: 20 microseconds
+Order execution time: 0 microseconds for order order_1760949981824487000_7379894586619447235
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760949981928259000_269283316374064453
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949982660610000_4759214835863345537
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949983298367000_1987797335525576083
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949983620079000_6495252740936304388
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949983738588000_2421368929072683800
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949983973846000_4702542191559184304
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949984520342000_6556764928410141555
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760949984850352000_8716853950665040953
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949985071606000_1725537103497345908
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760949985183123000_3830229786193299929
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760949985294231000_5239147558309798158
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760949985517305000_7420452870900293676
+Total trip time: 13 microseconds
+Order execution time: 2 microseconds for order order_1760949985966225000_4072297514396377855
+Total trip time: 16 microseconds
+Order execution time: 0 microseconds for order order_1760950066278040000_4545942195401216273
+Total trip time: 71 microseconds
+Order execution time: 0 microseconds for order order_1760950066315206000_7451119782749246067
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950066326595000_8172103147651681515
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950066338223000_4751370759433706004
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950066350351000_7218359015657269862
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760950066386561000_8895594242748686439
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950066399225000_4014390119581471383
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950066412311000_3540305889178131333
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950066424093000_4768556379025207792
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760950066435926000_6293152918450739104
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950066471976000_2972903622247444729
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760950066484573000_3021347187896437285
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950066555213000_1412683216739272657
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760950066623117000_8645797980437485398
+Total trip time: 30 microseconds
+Order execution time: 0 microseconds for order order_1760950066639360000_5611435604180582163
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950066655754000_7758339291251722672
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950066689206000_2600913288613628796
+Total trip time: 19 microseconds
+Order execution time: 0 microseconds for order order_1760950066706934000_8049163247388946838
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950066724548000_6827224217396911567
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950066742098000_7140686505978112823
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760950066816304000_5664027545539665856
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760950066836009000_4029004494430257660
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950066874359000_5216929095504281654
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950066893682000_6663058037998290781
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950066914153000_4569152785781410594
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950066955183000_2708610108256625668
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950066975761000_1706874222363779276
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950067018395000_8673566313889495410
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950067083592000_9216569747097161954
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950067127660000_3382137115474078968
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950067154243000_440992866874618660
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950067177911000_1060378367344068733
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950067224344000_3259757876477950948
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950067248316000_2500042356758781150
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950067272163000_8118451732845697391
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950067368776000_1353391243839089840
+Total trip time: 29 microseconds
+Order execution time: 0 microseconds for order order_1760950067417554000_7513880313446229908
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950067467947000_979401263665741392
+Total trip time: 24 microseconds
+Order execution time: 0 microseconds for order order_1760950067519060000_4856722904397924039
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950067544277000_2724972788921779229
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950067570767000_5918524390695949073
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950067623349000_1713691787646414111
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950067710888000_6744849325892661168
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950067765960000_7438724336535874985
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950067821287000_2485956024054810862
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950067849239000_6412717382141722259
+Total trip time: 23 microseconds
+Order execution time: 0 microseconds for order order_1760950067905536000_8702043839371811408
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950067934460000_8039344418288827685
+Total trip time: 18 microseconds
+Order execution time: 2 microseconds for order order_1760950067962921000_2679683449107555782
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950068082646000_736076311470994392
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760950068112835000_4738493089604287309
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950068143530000_3685235870630634839
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950068237919000_2452832044127943582
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950068269689000_3330625904654215467
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950068302249000_4532965128003160111
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950068669020000_4948415595236294733
+Total trip time: 18 microseconds
+Order execution time: 0 microseconds for order order_1760950068775554000_8108122853265993095
+Total trip time: 9 microseconds
+Order execution time: 3 microseconds for order order_1760950068811836000_7511512536555647388
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950068848023000_4392476099518624141
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950068884682000_8743194010766224949
+Total trip time: 19 microseconds
+Order execution time: 0 microseconds for order order_1760950068959006000_4723809289060088243
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950069071924000_140640703893369145
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950069449303000_3060790793929130455
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950069491555000_3315309744495626347
+Total trip time: 21 microseconds
+Order execution time: 0 microseconds for order order_1760950069574937000_65910626581420574
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950069700868000_6221438517304432527
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950069743087000_6252624338922682162
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950069829013000_5295835375825309876
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950069913909000_2336489084644053556
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950069956946000_554001109678446381
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950070000241000_4418197057511996716
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950070087871000_3970670015840445449
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950070132651000_216268170647282729
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950070177497000_8466752385515903880
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950070313326000_5844555375995818735
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950070359021000_5857731782757478784
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950070405205000_2436174178396898242
+Total trip time: 6 microseconds
+Order execution time: 0 microseconds for order order_1760950070498115000_6727992852253021259
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950070545255000_7787418860599558322
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950070592839000_3127062520255660248
+Total trip time: 6 microseconds
+Order execution time: 0 microseconds for order order_1760950070640387000_43116006606252501
+Total trip time: 5 microseconds
+Order execution time: 0 microseconds for order order_1760950070785212000_8697300469858806377
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950071032568000_6462732838834707023
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950071083054000_6027889601299293663
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950071184311000_3874513667028259171
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760950071287059000_3918459684152773259
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760950071338691000_4447249650840088489
+Total trip time: 5 microseconds
+Order execution time: 0 microseconds for order order_1760950071390718000_4850122179184314925
+Total trip time: 4 microseconds
+Order execution time: 0 microseconds for order order_1760950071442869000_4575078474801209556
+Total trip time: 4 microseconds
+Order execution time: 0 microseconds for order order_1760950071763092000_8171005057267102539
+Total trip time: 6 microseconds
+Order execution time: 0 microseconds for order order_1760950071817226000_176209800929949999
+Total trip time: 3 microseconds
+Order execution time: 0 microseconds for order order_1760950072046611000_3020086207467077673
+Total trip time: 24 microseconds
+Order execution time: 0 microseconds for order order_1760950072283960000_5773428941840691332
+Total trip time: 15 microseconds
+Order execution time: 0 microseconds for order order_1760950072342327000_2034412769639055095
+Total trip time: 18 microseconds
+Order execution time: 0 microseconds for order order_1760950072579419000_7297518657907247223
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950072706976000_5443098593322530161
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950072827464000_2502588264948111496
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950072891533000_4143169082158632085
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950072975432000_39916605680563697
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950261126683000_7469621054900459090
+Total trip time: 88 microseconds
+Order execution time: 0 microseconds for order order_1760950261139967000_9011788068288451400
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950261151486000_3218427156114893518
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760950261186065000_3831340372812093474
+Total trip time: 23 microseconds
+Order execution time: 0 microseconds for order order_1760950261208060000_4538743847434535438
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950261220321000_2481478431118972302
+Total trip time: 15 microseconds
+Order execution time: 0 microseconds for order order_1760950261232173000_6169635703118288556
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760950261255289000_7706960083157131140
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950261288622000_2608434079042293768
+Total trip time: 19 microseconds
+Order execution time: 0 microseconds for order order_1760950261337826000_5275631717710372222
+Total trip time: 21 microseconds
+Order execution time: 0 microseconds for order order_1760950261380370000_8627427139522637016
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760950261394799000_4413325997283049124
+Total trip time: 12 microseconds
+Order execution time: 11 microseconds for order order_1760950261410056000_6720343230788213294
+Total trip time: 28 microseconds
+Order execution time: 0 microseconds for order order_1760950261441740000_2179436865009767931
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950261458066000_7686633958676680021
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950261491342000_3032053679283412064
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950261508171000_8588419006377681506
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950261525118000_2306504742264892909
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950261578095000_4183807818698584670
+Total trip time: 18 microseconds
+Order execution time: 0 microseconds for order order_1760950261738092000_4111554673816205273
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950261778549000_6718214470763753148
+Total trip time: 21 microseconds
+Order execution time: 0 microseconds for order order_1760950261799467000_1657770394833581940
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760950261860515000_1229066815731608364
+Total trip time: 24 microseconds
+Order execution time: 0 microseconds for order order_1760950261907842000_3888733360157703463
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950261952468000_9211647928157732205
+Total trip time: 22 microseconds
+Order execution time: 0 microseconds for order order_1760950261974416000_7159200207991611449
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950261997070000_6910362430159808851
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950262019963000_7610102469418869746
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950262113484000_6648636785502574445
+Total trip time: 20 microseconds
+Order execution time: 0 microseconds for order order_1760950262137548000_6331656144441467624
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950262185875000_3914438295441697131
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950262234876000_6541592344946125936
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950262259021000_1214832890494520311
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950262285008000_8991251892192913839
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950262309268000_7978538736059783105
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950262412988000_1199010537742092506
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950262465456000_642930063200167256
+Total trip time: 20 microseconds
+Order execution time: 0 microseconds for order order_1760950262545839000_1607802511635682504
+Total trip time: 15 microseconds
+Order execution time: 0 microseconds for order order_1760950262573333000_7244433320667501281
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950262601078000_5773262457403253895
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950262628180000_437888456036456394
+Total trip time: 16 microseconds
+Order execution time: 0 microseconds for order order_1760950262662404000_1955888804774027488
+Total trip time: 142 microseconds
+Order execution time: 0 microseconds for order order_1760950262966878000_2538778709595965535
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950263031366000_127547775796563195
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950263248190000_6974471730022793991
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950263394313000_6500548283016830531
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950263430646000_8841239149595080489
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950263467789000_610497872959463091
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950263504916000_7907396688105330151
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950263577674000_946055654773504631
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950263614012000_5887311374253543793
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950263686686000_8633265758101085242
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950263723703000_4202152113605637928
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950263835548000_3991819546814960303
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950263881782000_59097970086855429
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950263941606000_4729886846819871453
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950264017644000_8618630326663763989
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950264056381000_7828320086919403361
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950264133515000_8507998300918045055
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950264212765000_6154371275649564304
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950264251969000_3533684448807554034
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950264537797000_3538424401448077197
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950264579217000_2538488957980877137
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950264750421000_7520907256812494335
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950264836211000_934994840262185610
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950264924825000_1734671775918783478
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760950264968831000_3532252609573844774
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950265148616000_1156445449060353204
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950265286256000_3625854468258850887
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950265332836000_4445942698277607942
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950265380011000_1933014552008964500
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950265522374000_7187767097937859460
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950265570860000_7120513633760990991
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950265667324000_2045902775048450639
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950265716594000_3847357841421726965
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950265765723000_5727688276873170277
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950265865575000_5059770619499449015
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950266017652000_3169987849900815068
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950266120370000_6807343131663361897
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950266235420000_4258325041628141573
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950266306538000_6893112337380476648
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950266465885000_874472425741866665
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950266573526000_3091520552759277538
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950266737905000_9072918985752749127
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950266793167000_3759102460474808034
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950266913322000_431580760735296397
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950267139365000_3673847762697649661
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950267197051000_8374793076055152522
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950267254967000_6167164673531986726
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950267371440000_5358493349682423401
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950267437753000_4062607878654344210
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950267497558000_2584147809060718202
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950267556782000_5845713555029335662
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950267676188000_2578643815950120636
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950267796952000_2209835102804645176
+Total trip time: 10 microseconds
+Order execution time: 2 microseconds for order order_1760950267980685000_8512352550180223830
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950268042289000_8677861587452707279
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950268104230000_4512375012194049092
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950268228353000_8618332107089075258
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950268417554000_1293229625343161074
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950268481424000_2778121212102643175
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950268608645000_477150191170534378
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950268682679000_108910604253470509
+Total trip time: 12 microseconds
+Order execution time: 2 microseconds for order order_1760950268831688000_4901597612434038741
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950268962329000_1463532325536235586
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950269027825000_2174140903309417967
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950269225708000_4497117598876691439
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950269768381000_7679328567771387791
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950269837249000_8571477496152613507
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950269975905000_6783016783653003756
+Total trip time: 10 microseconds
+Order execution time: 2 microseconds for order order_1760950270116083000_3748284860585968490
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950270257718000_697936983760995176
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950270328774000_2292314598527773482
+Total trip time: 16 microseconds
+Order execution time: 0 microseconds for order order_1760950270687970000_6816356738525442049
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950270907383000_865079107770257051
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950270981144000_5554851133479323495
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950271054720000_7803252123400371252
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950271129190000_7234039302131649093
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950271203464000_5601875491367457916
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950271455535000_4592470602296795890
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950271531295000_7724292512387783531
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950271759340000_8135273353098100039
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950271912782000_940459822770296483
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950271990130000_992784256985096037
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950272067701000_4158908409612233275
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950272145750000_4526188706426677848
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950272223904000_5034422574057777322
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950272380920000_8780670527596152805
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950272538888000_7127676992443047472
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950272618351000_886465834989778087
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950272777833000_5578029210571545428
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950272938775000_7748605612421690510
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950273019386000_2686372597698206669
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950273182166000_2945499837938117474
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950273346374000_4292993206679624665
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950273428309000_4775032345626556068
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950273758677000_892546883869172634
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950273842142000_8944456505683512870
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950273926081000_743131427372904541
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950274122532000_646712133563029306
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950274207235000_1740526269609053760
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950274463262000_5037200661618780038
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950274723324000_4491637899926151319
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950274900033000_5080388380798236049
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950274988208000_3239793567355384175
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950275075608000_7923301867414796979
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950275345969000_4788824394984085528
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950275611790000_483131971169166842
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950275790222000_633328630432121927
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950276240955000_285593527459642373
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950276359747000_4970650857037153290
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950276720774000_928600209079099887
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950276903285000_8168744633085848171
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950277273649000_1863170858223037870
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760950277463035000_7451943397774388755
+Total trip time: 6 microseconds
+Order execution time: 0 microseconds for order order_1760950277747416000_3008895015509102842
+Total trip time: 90 microseconds
+Order execution time: 0 microseconds for order order_1760950278132032000_9190658626798998715
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950278324866000_4002221193833231130
+Total trip time: 18 microseconds
+Order execution time: 0 microseconds for order order_1760950278709639000_6156569157622263777
+Total trip time: 15 microseconds
+Order execution time: 0 microseconds for order order_1760950278902220000_2593788940887090891
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950278998716000_5382027797254855086
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950279095090000_895295344413150971
+Total trip time: 7 microseconds
+Order execution time: 7 microseconds for order order_1760950820530417000_6856580721430274053
+Total trip time: 98 microseconds
+Order execution time: 0 microseconds for order order_1760950820544034000_738998989257477620
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760950820589226000_7375176965388086383
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950820600504000_5467319200210763728
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950820612482000_4199396559345564110
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760950820624030000_136493550383417184
+Total trip time: 19 microseconds
+Order execution time: 0 microseconds for order order_1760950820634624000_2933645710883317362
+Total trip time: 13 microseconds
+Order execution time: 9 microseconds for order order_1760950820645568000_2959481994949761283
+Total trip time: 24 microseconds
+Order execution time: 0 microseconds for order order_1760950820656735000_527366305305766846
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950820679229000_7960340983470595969
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760950820690985000_5496542320298369978
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760950820714986000_8064503145615807511
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950820739455000_1034249127051645144
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950820779299000_8017237774642413905
+Total trip time: 16 microseconds
+Order execution time: 0 microseconds for order order_1760950820793404000_3617540412170573255
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760950820807497000_7227351514117435747
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950820821471000_4268427427067793287
+Total trip time: 5 microseconds
+Order execution time: 0 microseconds for order order_1760950820851137000_6869918711946270452
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950820866494000_7554895111085660595
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950820914067000_4067922782767305595
+Total trip time: 15 microseconds
+Order execution time: 0 microseconds for order order_1760950820930428000_7806275307992363999
+Total trip time: 19 microseconds
+Order execution time: 0 microseconds for order order_1760950821057048000_5635419695998568204
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950821075531000_9003412867960955062
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950821209712000_4712648393400613148
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950821250320000_6179845316016698859
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950821333379000_4328426130302457525
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950821419736000_4141032691266417680
+Total trip time: 16 microseconds
+Order execution time: 0 microseconds for order order_1760950821442636000_8430186357301924327
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950821510706000_9009049130130382053
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950821533360000_2009143039654761440
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950821556793000_5650061961408447946
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950821624984000_6043603237849407305
+Total trip time: 19 microseconds
+Order execution time: 0 microseconds for order order_1760950821674740000_7640973286820177912
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950821698512000_7124840303158931338
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950821746688000_4226559194947234123
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950821870988000_401626318164156955
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950821896478000_5627877363819694253
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760950821921992000_4324725458110073731
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950822032827000_2972164723469053929
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950822059943000_6802192249015150874
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950822086801000_5535646903671937188
+Total trip time: 32 microseconds
+Order execution time: 0 microseconds for order order_1760950822114276000_2820109623308115944
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950822142396000_2616941833674036711
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950822170489000_1264884619661351342
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950822198937000_4388887813616333471
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950822258661000_9052154215798959815
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950822290999000_7333366203106272456
+Total trip time: 291 microseconds
+Order execution time: 0 microseconds for order order_1760950822473732000_8315652303773258624
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950822508070000_8003590480743853080
+Total trip time: 21 microseconds
+Order execution time: 0 microseconds for order order_1760950822553360000_4291789618642248215
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950822588599000_8801962311330148039
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950822623454000_4213503646744445590
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950822658445000_3911169313879686237
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950822693146000_2813294309454830125
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950822986409000_8469859317069072881
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950823060597000_5393498508240924466
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950823135886000_8851198932059682090
+Total trip time: 16 microseconds
+Order execution time: 0 microseconds for order order_1760950823173966000_2596798333769628366
+Total trip time: 18 microseconds
+Order execution time: 0 microseconds for order order_1760950823250762000_731111809798655426
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760950823365830000_2225911366997949203
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950823563106000_3591490518679521493
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950823603100000_4611360280282522249
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950823765698000_7754738749149030831
+Total trip time: 6 microseconds
+Order execution time: 0 microseconds for order order_1760950823889766000_4599267021020699010
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950823931712000_6362238075020929411
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950824015699000_5099888350344278585
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950824058152000_2596572420168299925
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950824144080000_701848310512529710
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950824187564000_9189736931209039385
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950824275906000_7772322505008888033
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950824320148000_5391418204147575501
+Total trip time: 4 microseconds
+Order execution time: 0 microseconds for order order_1760950824409922000_450464214625294105
+Total trip time: 6 microseconds
+Order execution time: 0 microseconds for order order_1760950824509077000_6408669177078807487
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760950824694487000_2174622025520157674
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950824741390000_6282746864998327805
+Total trip time: 5 microseconds
+Order execution time: 0 microseconds for order order_1760950824836304000_7243863705344598563
+Total trip time: 6 microseconds
+Order execution time: 0 microseconds for order order_1760950824980499000_6933708856879793254
+Total trip time: 6 microseconds
+Order execution time: 0 microseconds for order order_1760950825327346000_3659999172486084504
+Total trip time: 7 microseconds
+Order execution time: 0 microseconds for order order_1760950825378131000_4690785586836158705
+Total trip time: 5 microseconds
+Order execution time: 0 microseconds for order order_1760950825636671000_3674992014906987904
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760950825753959000_8619431417848576951
+Total trip time: 35 microseconds
+Order execution time: 0 microseconds for order order_1760950825822744000_290459522411247807
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950825935236000_8805712007812493295
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950825991441000_5580154154733189628
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950826107277000_1823770389804821457
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950826164936000_5963531859325636703
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950826235970000_8333485688384076928
+Total trip time: 23 microseconds
+Order execution time: 0 microseconds for order order_1760950826294673000_2540572796917491976
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950826469281000_2955606531885010474
+Total trip time: 14 microseconds
+Order execution time: 0 microseconds for order order_1760950826827654000_8763120704518113031
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950826896623000_3624887154492617756
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950827016173000_4045975707959833323
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950827163934000_3525517309913170959
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950827286339000_2779386127421151911
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760950827409444000_7680150926126245138
+Total trip time: 12 microseconds
+Order execution time: 7 microseconds for order order_1760950827659460000_3261676687030169279
+Total trip time: 20 microseconds
+Order execution time: 0 microseconds for order order_1760950827722505000_2485510897345198588
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760950827981314000_2523495354058414459
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760950828109331000_1338282708580156258
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760953734056126000_8975070359589910622
+Total trip time: 97 microseconds
+Order execution time: 0 microseconds for order order_1760953734071027000_4810777306823630481
+Total trip time: 18 microseconds
+Order execution time: 0 microseconds for order order_1760953734103289000_5918711379009026842
+Total trip time: 19 microseconds
+Order execution time: 0 microseconds for order order_1760953734149184000_8099483382744744452
+Total trip time: 15 microseconds
+Order execution time: 0 microseconds for order order_1760953734161147000_8285665074001710985
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760953734183320000_4302648421853457943
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760953734215958000_3318023419270867549
+Total trip time: 11 microseconds
+Order execution time: 1 microseconds for order order_1760953734250651000_7490784183552986690
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953734263204000_9021094607745285837
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953734275898000_9031490810863840913
+Total trip time: 18 microseconds
+Order execution time: 0 microseconds for order order_1760953734289200000_8789216783162362848
+Total trip time: 20 microseconds
+Order execution time: 0 microseconds for order order_1760953734316421000_4384216194951229418
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760953734374227000_7767223047978122897
+Total trip time: 18 microseconds
+Order execution time: 0 microseconds for order order_1760953734390242000_4780869633762352510
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953734421212000_1403147416025758053
+Total trip time: 26 microseconds
+Order execution time: 0 microseconds for order order_1760953734466049000_2180973028327412917
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760953734482584000_4766677986735322755
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953734518391000_1443873531291099521
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760953734547019000_2627687661693309369
+Total trip time: 23 microseconds
+Order execution time: 0 microseconds for order order_1760953734573463000_8452295477482489309
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953734595201000_1824473960396665134
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953734615209000_9148849830870932589
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760953734633946000_2626329380924389398
+Total trip time: 18 microseconds
+Order execution time: 0 microseconds for order order_1760953734654767000_1420370842632784217
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953734675003000_5805520177941949792
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953734759005000_8307267468130132697
+Total trip time: 15 microseconds
+Order execution time: 0 microseconds for order order_1760953734780440000_1133492160720578419
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953734822734000_7389037353643300960
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953734843743000_8816143426285514047
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760953734952292000_9121192185349445427
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953734974984000_3435795943582874466
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953735043288000_5698309928901724114
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953735090868000_2885254085402540980
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760953735114682000_1137120410318094319
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760953735163156000_8873557343879215543
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953735187782000_4594284281916105372
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953735212245000_6383818421990740782
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953735236813000_2361591945243524049
+Total trip time: 29 microseconds
+Order execution time: 0 microseconds for order order_1760953735261104000_5644698604525558584
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760953735310294000_149070524914650814
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760953735417592000_4260285078024367547
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953735444165000_6437201430487697804
+Total trip time: 11 microseconds
+Order execution time: 3 microseconds for order order_1760953735495705000_8389226155085448023
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760953735522124000_8026819044377693184
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953735548459000_3872994768537410505
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953735575020000_7498315702391739676
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953735602061000_2327966110173702711
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953735656552000_6367869546468057435
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953735768829000_6887292072488223349
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760953735915533000_3064768458671173482
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953735977065000_477922101919621661
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953736008428000_9045581072579139226
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953736039980000_8008027069552672270
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953736136041000_807359301452260145
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953736234866000_5560177924861272429
+Total trip time: 6 microseconds
+Order execution time: 0 microseconds for order order_1760953736302361000_3356461937430309106
+Total trip time: 8 microseconds
+Order execution time: 0 microseconds for order order_1760953736406495000_5981616859470613222
+Total trip time: 13 microseconds
+Order execution time: 0 microseconds for order order_1760953736441715000_1816255764062524803
+Total trip time: 17 microseconds
+Order execution time: 0 microseconds for order order_1760953736477774000_5794417822687489299
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760953736550077000_2936639992763871404
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953736624349000_5483560364670305983
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953736813823000_1955304201537528470
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760953736852714000_94892451855587717
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760953737171411000_7130752873558927568
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953737274564000_3503707741548522521
+Total trip time: 20 microseconds
+Order execution time: 0 microseconds for order order_1760953737405362000_6180717791693279952
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953737490060000_970426633780575735
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953737575907000_4627372260471775581
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953737618995000_2469837632083273107
+Total trip time: 22 microseconds
+Order execution time: 0 microseconds for order order_1760953737662422000_470833199569853739
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760953737750288000_786472666660634362
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953737840433000_7656363994375567261
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760953737930567000_2430273929714413425
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953737976665000_3407858599225103450
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953738115584000_3914830099249945427
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953738209745000_252025144312998943
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953738257584000_8786144019927146673
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953738450324000_2854927356365882353
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953738548930000_7078353243901320136
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760953738648311000_1385153439552067504
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953738698545000_494991797450611829
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953738749519000_1326241927956104071
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953738902986000_1244209268662234735
+Total trip time: 23 microseconds
+Order execution time: 0 microseconds for order order_1760953739217890000_786871586158282122
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953739462529000_4408077137565376832
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953739517644000_1983797675458894194
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953739572741000_7896179223702301046
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953739628302000_4032796018380050659
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953739684319000_6869130423292903611
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953739807848000_8705406199829608109
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953739921705000_1597804562334752000
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953740095077000_2221376237910699606
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953740153675000_7771501303889704144
+Total trip time: 20 microseconds
+Order execution time: 0 microseconds for order order_1760953740270886000_4612763307807510118
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953740338174000_4814656438888870186
+Total trip time: 15 microseconds
+Order execution time: 0 microseconds for order order_1760953740398493000_6759527522867387981
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953740458425000_2621894439679604953
+Total trip time: 5 microseconds
+Order execution time: 0 microseconds for order order_1760953740578163000_2740417405109737246
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953740639064000_6927355691223754538
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953740699912000_3504960110493669519
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953740760961000_2652952799655984778
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953740884282000_9007043179161051165
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953740946352000_3165702078940956750
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953741008537000_1088229792634337919
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953741133753000_3831258736288392001
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953741196743000_955246279828400051
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760953741259754000_2118555118367488352
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953741516133000_2438399686654019487
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953741579450000_6783374658273078912
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953741669320000_3471671261128288722
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953741798294000_9221833387188691765
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953741930332000_8766343326806147773
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953742198032000_3445523277060766142
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953742265451000_5456894104044527550
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953742537563000_4278802850424360210
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953742605959000_1880995840627779908
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953742674987000_773334484370473540
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953742883425000_3549621980493668239
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953743024292000_8047726714010670505
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953743095015000_6970675837097611673
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953743237482000_8777805482954822454
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953743308538000_4618785512853086553
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953743451460000_1364587163628578073
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953743524035000_6686182410735979548
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953743596178000_3443375377064706613
+Total trip time: 9 microseconds
+Order execution time: 0 microseconds for order order_1760953743668992000_3474267069596418222
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953743766890000_2796176732065322455
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953743913910000_4443055117890691517
+Total trip time: 11 microseconds
+Order execution time: 3 microseconds for order order_1760953743988423000_7766879647142943894
+Total trip time: 15 microseconds
+Order execution time: 0 microseconds for order order_1760953744063365000_7145262966055668411
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760953744213590000_2084380201754605873
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953744363798000_5798034053595893455
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953744439545000_4118880073700424890
+Total trip time: 12 microseconds
+Order execution time: 0 microseconds for order order_1760953744591009000_8544864809946095003
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953744820514000_9081679251571982226
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953744897334000_3802247809055177707
+Total trip time: 10 microseconds
+Order execution time: 0 microseconds for order order_1760953745207836000_4100650374264352071
+Total trip time: 11 microseconds
+Order execution time: 0 microseconds for order order_1760953745367042000_599035031782671248
+Total trip time: 39 microseconds

@@ -11,6 +11,7 @@
 #include <cstring>
 #include <mutex>
 #include "../core_engine/StockExchange.h"
+#include "AuthenticationManager.h"
 
 // Shared memory ring buffer for ultra-low latency order submission
 class SharedMemoryQueue {
@@ -73,12 +74,13 @@ struct SharedOrderMessage {
     uint32_t order_id_len;
     uint32_t user_id_len;
     uint32_t symbol_len;
+    uint32_t auth_token_len;
     uint8_t side;
     uint8_t order_type;
     uint64_t quantity;
     double price;
     uint64_t timestamp_ms;
-    // Variable-length strings follow
+    // Variable-length strings follow: order_id, user_id, symbol, auth_token
 };
 #pragma pack(pop)
 
@@ -96,8 +98,8 @@ public:
     void disconnect();
 
     bool submitOrder(const std::string& order_id, const std::string& user_id,
-                    const std::string& symbol, uint8_t side, uint8_t order_type,
-                    uint64_t quantity, double price);
+                     const std::string& symbol, uint8_t side, uint8_t order_type,
+                     uint64_t quantity, double price, const std::string& auth_token);
 
     bool isConnected() const { return queue_ && queue_->is_connected(); }
 };
@@ -108,11 +110,14 @@ private:
     std::unique_ptr<SharedMemoryQueue> queue_;
     std::string shm_name_;
     StockExchange* exchange_;
+    AuthenticationManager* auth_manager_;
+    std::atomic<ConnectionId> automation_connection_id_{-1};
     std::thread worker_thread_;
     std::atomic<bool> running_{false};
 
 public:
-    SharedMemoryOrderServer(const std::string& shm_name, StockExchange* exchange);
+    SharedMemoryOrderServer(const std::string& shm_name, StockExchange* exchange,
+                           AuthenticationManager* auth_manager);
     ~SharedMemoryOrderServer();
 
     bool start();

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <memory>
 #include <future>
+#include <limits>
 
 using namespace boost::interprocess;
 
@@ -58,7 +59,11 @@ SharedMemoryQueue::~SharedMemoryQueue() {
 }
 
 bool SharedMemoryQueue::enqueue(const void* message, size_t size) {
-    if (!shared_data_ || size > message_size_) return false;
+    if (!shared_data_) return false;
+    if (size + sizeof(size_t) > message_size_) {
+        std::cerr << "SharedMemoryQueue: message too large for slot (" << size << " bytes)" << std::endl;
+        return false;
+    }
 
     scoped_lock<interprocess_mutex> lock(shared_data_->mutex);
 
@@ -80,7 +85,11 @@ bool SharedMemoryQueue::enqueue(const void* message, size_t size) {
 }
 
 bool SharedMemoryQueue::try_enqueue(const void* message, size_t size) {
-    if (!shared_data_ || size > message_size_) return false;
+    if (!shared_data_) return false;
+    if (size + sizeof(size_t) > message_size_) {
+        std::cerr << "SharedMemoryQueue: message too large for slot (" << size << " bytes)" << std::endl;
+        return false;
+    }
 
     scoped_lock<interprocess_mutex> lock(shared_data_->mutex, try_to_lock);
     if (!lock.owns()) return false;
@@ -114,6 +123,12 @@ bool SharedMemoryQueue::dequeue(void* message, size_t& size) {
 
     // Read message size and data
     size_t msg_size = *reinterpret_cast<size_t*>(slot);
+    if (msg_size + sizeof(size_t) > message_size_) {
+        std::cerr << "SharedMemoryQueue: corrupt message size (" << msg_size << " bytes)" << std::endl;
+        shared_data_->tail.store((tail + 1) % capacity_);
+        shared_data_->not_full.notify_one();
+        return false;
+    }
     std::memcpy(message, slot + sizeof(size_t), msg_size);
     size = msg_size;
 
@@ -136,6 +151,12 @@ bool SharedMemoryQueue::try_dequeue(void* message, size_t& size) {
 
     // Read message size and data
     size_t msg_size = *reinterpret_cast<size_t*>(slot);
+    if (msg_size + sizeof(size_t) > message_size_) {
+        std::cerr << "SharedMemoryQueue: corrupt message size (" << msg_size << " bytes)" << std::endl;
+        shared_data_->tail.store((tail + 1) % capacity_);
+        shared_data_->not_full.notify_one();
+        return false;
+    }
     std::memcpy(message, slot + sizeof(size_t), msg_size);
     size = msg_size;
 
@@ -189,18 +210,54 @@ void SharedMemoryOrderClient::disconnect() {
 
 bool SharedMemoryOrderClient::submitOrder(const std::string& order_id, const std::string& user_id,
                                          const std::string& symbol, uint8_t side, uint8_t order_type,
-                                         uint64_t quantity, double price) {
+                                         uint64_t quantity, double price, const std::string& auth_token) {
     if (!queue_) return false;
 
+    if (auth_token.empty()) {
+        std::cerr << "SharedMemoryQueue: auth token is required for order submission" << std::endl;
+        return false;
+    }
+
+    auto fits_u32 = [](size_t value) {
+        return value <= static_cast<size_t>(std::numeric_limits<uint32_t>::max());
+    };
+
+    if (!fits_u32(order_id.size()) || !fits_u32(user_id.size()) ||
+        !fits_u32(symbol.size()) || !fits_u32(auth_token.size())) {
+        std::cerr << "SharedMemoryQueue: field size exceeds protocol limits" << std::endl;
+        return false;
+    }
+
     // Calculate message size
-    size_t message_size = sizeof(SharedOrderMessage) + order_id.size() + user_id.size() + symbol.size();
+    auto safe_add = [](size_t base, size_t value, bool& ok) {
+        if (!ok || value > std::numeric_limits<size_t>::max() - base) {
+            ok = false;
+            return base;
+        }
+        return base + value;
+    };
+
+    bool add_ok = true;
+    size_t variable_size = 0;
+    variable_size = safe_add(variable_size, order_id.size(), add_ok);
+    variable_size = safe_add(variable_size, user_id.size(), add_ok);
+    variable_size = safe_add(variable_size, symbol.size(), add_ok);
+    variable_size = safe_add(variable_size, auth_token.size(), add_ok);
+
+    if (!add_ok || variable_size > std::numeric_limits<size_t>::max() - sizeof(SharedOrderMessage)) {
+        std::cerr << "SharedMemoryQueue: message too large" << std::endl;
+        return false;
+    }
+
+    size_t message_size = sizeof(SharedOrderMessage) + variable_size;
     std::vector<char> message(message_size);
 
     SharedOrderMessage* order_msg = reinterpret_cast<SharedOrderMessage*>(message.data());
     order_msg->message_length = message_size;
-    order_msg->order_id_len = order_id.size();
-    order_msg->user_id_len = user_id.size();
-    order_msg->symbol_len = symbol.size();
+    order_msg->order_id_len = static_cast<uint32_t>(order_id.size());
+    order_msg->user_id_len = static_cast<uint32_t>(user_id.size());
+    order_msg->symbol_len = static_cast<uint32_t>(symbol.size());
+    order_msg->auth_token_len = static_cast<uint32_t>(auth_token.size());
     order_msg->side = side;
     order_msg->order_type = order_type;
     order_msg->quantity = quantity;
@@ -215,13 +272,16 @@ bool SharedMemoryOrderClient::submitOrder(const std::string& order_id, const std
     std::memcpy(string_data, user_id.data(), user_id.size());
     string_data += user_id.size();
     std::memcpy(string_data, symbol.data(), symbol.size());
+    string_data += symbol.size();
+    std::memcpy(string_data, auth_token.data(), auth_token.size());
 
     return queue_->enqueue(message.data(), message_size);
 }
 
 // SharedMemoryOrderServer implementation
-SharedMemoryOrderServer::SharedMemoryOrderServer(const std::string& shm_name, StockExchange* exchange)
-    : shm_name_(shm_name), exchange_(exchange) {}
+SharedMemoryOrderServer::SharedMemoryOrderServer(const std::string& shm_name, StockExchange* exchange,
+                                               AuthenticationManager* auth_manager)
+    : shm_name_(shm_name), exchange_(exchange), auth_manager_(auth_manager) {}
 
 SharedMemoryOrderServer::~SharedMemoryOrderServer() {
     stop();
@@ -231,6 +291,12 @@ bool SharedMemoryOrderServer::start() {
     if (running_.exchange(true)) return false;
 
     try {
+        if (!auth_manager_) {
+            std::cerr << "SharedMemory: Authentication manager is required for shared memory order intake" << std::endl;
+            running_.store(false);
+            return false;
+        }
+
         // Create shared memory queue
         queue_ = std::make_unique<SharedMemoryQueue>(shm_name_, 1024, 1024); // 1K capacity, 1KB messages
 
@@ -274,6 +340,36 @@ void SharedMemoryOrderServer::processOrders() {
             if (message_size >= sizeof(SharedOrderMessage)) {
                 SharedOrderMessage* order_msg = reinterpret_cast<SharedOrderMessage*>(buffer.data());
 
+                if (order_msg->message_length != message_size) {
+                    std::cerr << "SharedMemory: message length mismatch, dropping order" << std::endl;
+                    continue;
+                }
+
+                auto safe_accumulate = [](size_t base, size_t value, bool& ok) {
+                    if (!ok || value > std::numeric_limits<size_t>::max() - base) {
+                        ok = false;
+                        return base;
+                    }
+                    return base + value;
+                };
+
+                bool len_ok = true;
+                size_t payload_len = 0;
+                payload_len = safe_accumulate(payload_len, order_msg->order_id_len, len_ok);
+                payload_len = safe_accumulate(payload_len, order_msg->user_id_len, len_ok);
+                payload_len = safe_accumulate(payload_len, order_msg->symbol_len, len_ok);
+                payload_len = safe_accumulate(payload_len, order_msg->auth_token_len, len_ok);
+
+                if (!len_ok) {
+                    std::cerr << "SharedMemory: message field lengths overflow, dropping order" << std::endl;
+                    continue;
+                }
+
+                if (payload_len > message_size - sizeof(SharedOrderMessage)) {
+                    std::cerr << "SharedMemory: message truncated, dropping order" << std::endl;
+                    continue;
+                }
+
                 // Extract strings
                 size_t offset = sizeof(SharedOrderMessage);
                 std::string order_id(buffer.data() + offset, order_msg->order_id_len);
@@ -283,11 +379,47 @@ void SharedMemoryOrderServer::processOrders() {
                 offset += order_msg->user_id_len;
 
                 std::string symbol(buffer.data() + offset, order_msg->symbol_len);
+                offset += order_msg->symbol_len;
+
+                std::string auth_token(buffer.data() + offset, order_msg->auth_token_len);
+
+                if (auth_token.empty()) {
+                    std::cerr << "SharedMemory: missing auth token, order rejected" << std::endl;
+                    continue;
+                }
+
+                if (!auth_manager_) {
+                    std::cerr << "SharedMemory: no authentication manager configured, order rejected" << std::endl;
+                    continue;
+                }
+
+                ConnectionId conn_id = automation_connection_id_.fetch_sub(1);
+                AuthResult auth_result = auth_manager_->authenticateConnection(conn_id, auth_token);
+
+                if (auth_result != AuthResult::SUCCESS && auth_result != AuthResult::ALREADY_AUTHENTICATED) {
+                    std::cerr << "SharedMemory: token authentication failed for order " << order_id << std::endl;
+                    auth_manager_->removeSession(conn_id);
+                    continue;
+                }
+
+                UserId authenticated_user = auth_manager_->getUserId(conn_id);
+                auth_manager_->removeSession(conn_id);
+
+                if (authenticated_user.empty()) {
+                    std::cerr << "SharedMemory: authenticated user not found for order " << order_id << std::endl;
+                    continue;
+                }
+
+                if (!user_id.empty() && user_id != authenticated_user) {
+                    std::cerr << "SharedMemory: user mismatch for order " << order_id
+                              << ", token belongs to " << authenticated_user << std::endl;
+                    continue;
+                }
 
                 // Convert to core Order
                 Order core_order{
                     order_id,
-                    user_id,
+                    authenticated_user,
                     symbol,
                     static_cast<int>(order_msg->side),
                     static_cast<int>(order_msg->order_type),
@@ -296,8 +428,16 @@ void SharedMemoryOrderServer::processOrders() {
                     static_cast<int64_t>(order_msg->timestamp_ms)
                 };
 
-                // Submit order
-                exchange_->submitOrder(symbol, core_order);
+                // CRITICAL FIX: Check the result of submitOrder to detect rejections
+                // Previously we ignored the return value, causing silent failures for
+                // shared memory clients (risk rejections, validation errors, etc.)
+                std::string result = exchange_->submitOrder(symbol, core_order);
+                if (result != "accepted") {
+                    std::cerr << "SharedMemory: Order " << order_id << " rejected: " << result << std::endl;
+                    // TODO: Consider implementing a response queue for shared memory clients
+                    // to receive rejection notifications (currently there's no ack mechanism)
+                }
+                
                 EngineTelemetry::instance().recordOrder();
             }
         } else {

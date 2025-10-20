@@ -21,6 +21,9 @@ bool DatabaseManager::connect() {
         connection_pool_ = std::make_unique<ConnectionPool>(connection_string_, pool_size_);
         if (!connection_pool_->initialize()) {
             std::cerr << "Failed to initialize connection pool" << std::endl;
+            // CRITICAL FIX: Reset connection_pool_ to nullptr on failure
+            // Otherwise isConnected() returns true and saveToDatabase() will hang
+            connection_pool_.reset();
             return false;
         }
         
@@ -29,6 +32,8 @@ bool DatabaseManager::connect() {
         return true;
     } catch (const std::exception& e) {
         std::cerr << "Database connection error: " << e.what() << std::endl;
+        // CRITICAL FIX: Reset connection_pool_ to nullptr on exception
+        connection_pool_.reset();
         return false;
     }
 }
@@ -277,7 +282,10 @@ bool DatabaseManager::saveTrade(const std::string& trade_data) {
 }
 
 bool DatabaseManager::isConnected() const {
-    return connection_pool_ && connection_pool_->available_count() > 0;
+    // CRITICAL FIX: Check if pool exists and is initialized, not if connections are available
+    // During normal load, all connections may be checked out temporarily, which doesn't mean
+    // the database is disconnected. Only return false if the pool doesn't exist at all.
+    return connection_pool_ != nullptr;
 }
 
 bool DatabaseManager::loadUserAccount(const std::string& user_id, UserAccount& account) {

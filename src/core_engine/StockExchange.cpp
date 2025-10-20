@@ -2,11 +2,13 @@
 #include "StockExchange.h"
 #include "CPUAffinity.h"
 #include "../common/EngineLogging.h"
+#include "../api/AuthenticationManager.h"
 #include <algorithm>
 #include <iostream>
 #include <chrono>
 #include <random>
 #include <future>
+#include <utility>
 
 StockExchange::StockExchange(const std::string& db_connection_string) 
     : running_(false), market_index_base_value_(1000.0) {  // Start index at 1000 like S&P 500
@@ -63,7 +65,7 @@ bool StockExchange::initialize() {
         if (db_manager_ && db_manager_->isConnected()) {
             auto stock_data = db_manager_->getLatestStockData(symbol);
             if (stock_data.timestamp_ms > 0) {
-                initial_price = stock_data.last_price;
+                initial_price = stock_data.lastPriceToDouble();
             }
         }
         
@@ -76,6 +78,12 @@ bool StockExchange::initialize() {
         
         stocks_[symbol] = std::make_unique<Stock>(symbol, initial_price, 
                                                   matching_core, md_core, trade_core);
+            stocks_[symbol]->setTradeCallback([this](const Trade& trade) {
+                dispatchTrade(trade);
+            });
+        if (reserve_callback_) {
+            stocks_[symbol]->setReservationHandlers(reserve_callback_, release_callback_);
+        }
         
     ENGINE_LOG_DEV(std::cout << "Initialized " << symbol << " at $" << initial_price
                  << " (cores: " << matching_core << "," << md_core
@@ -440,53 +448,92 @@ std::vector<StockSnapshot> StockExchange::getAllStocksSnapshot(bool include_orde
 }
 
 void StockExchange::broadcastMarketData(const std::string& symbol) {
-    std::lock_guard<std::mutex> lock(subscribers_mutex_);
+    // CRITICAL FIX: Snapshot callbacks under lock, then invoke without holding lock
+    // to prevent deadlock if callback tries to unsubscribe or if callback is slow
+    std::vector<MarketDataCallback> callbacks_snapshot;
+    {
+        std::lock_guard<std::mutex> lock(subscribers_mutex_);
+        auto it = market_data_subscribers_.find(symbol);
+        if (it != market_data_subscribers_.end()) {
+            callbacks_snapshot = it->second;
+        }
+    }
     
-    auto it = market_data_subscribers_.find(symbol);
-    if (it != market_data_subscribers_.end()) {
+    // Invoke callbacks without holding the lock
+    if (!callbacks_snapshot.empty()) {
         MarketDataUpdate update = getMarketData(symbol);
-        for (const auto& callback : it->second) {
+        for (const auto& callback : callbacks_snapshot) {
             callback(update);
         }
     }
 }
 
 void StockExchange::broadcastIndex() {
-    std::lock_guard<std::mutex> lock(subscribers_mutex_);
+    // CRITICAL FIX: Snapshot callbacks under lock, then invoke without holding lock
+    std::vector<IndexUpdateCallback> callbacks_snapshot;
+    {
+        std::lock_guard<std::mutex> lock(subscribers_mutex_);
+        callbacks_snapshot = index_subscribers_;
+    }
     
-    if (!index_subscribers_.empty()) {
+    // Invoke callbacks without holding the lock
+    if (!callbacks_snapshot.empty()) {
         std::vector<IndexEntry> top_index = getTopIndex("volume", 5);
-        for (const auto& callback : index_subscribers_) {
+        for (const auto& callback : callbacks_snapshot) {
             callback(top_index);
         }
     }
 }
 
 void StockExchange::broadcastMarketIndex() {
-    std::lock_guard<std::mutex> lock(subscribers_mutex_);
+    // CRITICAL FIX: Snapshot callbacks under lock, then invoke without holding lock
+    std::vector<MarketIndexCallback> callbacks_snapshot;
+    {
+        std::lock_guard<std::mutex> lock(subscribers_mutex_);
+        callbacks_snapshot = market_index_subscribers_;
+    }
     
-    if (!market_index_subscribers_.empty()) {
+    // Invoke callbacks without holding the lock
+    if (!callbacks_snapshot.empty()) {
         MarketIndex index_copy;
         {
             std::lock_guard<std::mutex> index_lock(market_index_mutex_);
             index_copy = current_market_index_;
         }
         
-        for (const auto& callback : market_index_subscribers_) {
+        for (const auto& callback : callbacks_snapshot) {
             callback(index_copy);
         }
     }
 }
 
 void StockExchange::broadcastAllStocks() {
-    std::lock_guard<std::mutex> lock(subscribers_mutex_);
+    // CRITICAL FIX: Snapshot callbacks under lock, then invoke without holding lock
+    std::vector<AllStocksCallback> callbacks_snapshot;
+    {
+        std::lock_guard<std::mutex> lock(subscribers_mutex_);
+        callbacks_snapshot = all_stocks_subscribers_;
+    }
     
-    if (!all_stocks_subscribers_.empty()) {
+    // Invoke callbacks without holding the lock
+    if (!callbacks_snapshot.empty()) {
         std::vector<StockSnapshot> snapshots = getAllStocksSnapshot(true);
         
-        for (const auto& callback : all_stocks_subscribers_) {
+        for (const auto& callback : callbacks_snapshot) {
             callback(snapshots);
         }
+    }
+}
+
+void StockExchange::dispatchTrade(const Trade& trade) {
+    std::vector<TradeCallback> callbacks_snapshot;
+    {
+        std::lock_guard<std::mutex> lock(trade_subscribers_mutex_);
+        callbacks_snapshot = trade_subscribers_;
+    }
+
+    for (const auto& callback : callbacks_snapshot) {
+        callback(trade);
     }
 }
 
@@ -535,4 +582,46 @@ bool StockExchange::isHealthy() const {
     }
     
     return true;
+}
+
+void StockExchange::registerTradeObserver(TradeCallback callback) {
+    std::lock_guard<std::mutex> lock(trade_subscribers_mutex_);
+    trade_subscribers_.push_back(std::move(callback));
+}
+
+void StockExchange::setAuthenticationManager(AuthenticationManager* manager) {
+    auth_manager_ = manager;
+
+    if (!auth_manager_) {
+        reserve_callback_ = nullptr;
+        release_callback_ = nullptr;
+        trade_observer_registered_ = false;
+        return;
+    }
+
+    reserve_callback_ = [this](const Order& order, Price effective_price, std::string& reason) {
+        if (!auth_manager_) {
+            return true;
+        }
+        return auth_manager_->reserveForOrder(order, effective_price, reason);
+    };
+
+    release_callback_ = [this](const Order& order, const std::string& reason) {
+        if (auth_manager_) {
+            auth_manager_->releaseForOrder(order, reason);
+        }
+    };
+
+    for (auto& [symbol, stock] : stocks_) {
+        stock->setReservationHandlers(reserve_callback_, release_callback_);
+    }
+
+    if (!trade_observer_registered_) {
+        registerTradeObserver([this](const Trade& trade) {
+            if (auth_manager_) {
+                auth_manager_->applyTrade(trade);
+            }
+        });
+        trade_observer_registered_ = true;
+    }
 }

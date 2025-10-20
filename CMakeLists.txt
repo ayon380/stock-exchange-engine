@@ -87,9 +87,10 @@ add_executable(test_engine
     src/core_engine/Stock.cpp
     src/common/EngineConfig.cpp
     src/common/EngineTelemetry.cpp
+    src/api/AuthenticationManager.cpp
 )
 
 target_include_directories(test_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(test_engine PRIVATE src)
 
-target_link_libraries(test_engine PRIVATE libpqxx::pqxx Boost::system Boost::thread Boost::interprocess)
+target_link_libraries(test_engine PRIVATE libpqxx::pqxx Boost::system Boost::thread Boost::interprocess redis++::redis++_static absl::flat_hash_map)

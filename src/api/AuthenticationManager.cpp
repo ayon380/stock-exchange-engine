@@ -2,6 +2,9 @@
 #include <iostream>
 #include <chrono>
 #include <algorithm>
+#include <utility>
+#include <limits>
+#include "../core_engine/Stock.h"
 
 AuthenticationManager::AuthenticationManager(const std::string& redis_host, int redis_port, DatabaseManager* db_manager)
     : db_manager_(db_manager) {
@@ -184,41 +187,208 @@ bool AuthenticationManager::checkBuyingPower(const UserId& user_id, CashAmount r
     if (!account) {
         return false;
     }
-    
-    return account->buying_power.load() >= required_cash;
+    CashAmount available_cash = account->cash.load() - account->reserved_cash.load();
+    return available_cash >= required_cash;
 }
 
-bool AuthenticationManager::updatePosition(const UserId& user_id, const std::string& symbol, long quantity_change, Price price) {
+void AuthenticationManager::applyTrade(const Trade& trade) {
+    const CashAmount trade_value = trade.price * trade.quantity;
+
+    if (!trade.buy_user_id.empty()) {
+        if (auto buyer = getAccount(trade.buy_user_id)) {
+            consumeReservationForTrade(trade.buy_order_id, trade.buy_user_id, trade.price, trade.quantity, 0);
+            std::scoped_lock<std::mutex> lock(buyer->account_mutex);
+            if (auto* position = locatePosition(buyer, trade.symbol)) {
+                position->fetch_add(static_cast<long>(trade.quantity), std::memory_order_relaxed);
+            }
+            buyer->cash.fetch_sub(trade_value, std::memory_order_relaxed);
+            buyer->buying_power.store(buyer->cash.load() - buyer->reserved_cash.load(), std::memory_order_relaxed);
+            buyer->day_trading_buying_power.store(buyer->buying_power.load(), std::memory_order_relaxed);
+            buyer->total_trades.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+
+    if (!trade.sell_user_id.empty()) {
+        if (auto seller = getAccount(trade.sell_user_id)) {
+            consumeReservationForTrade(trade.sell_order_id, trade.sell_user_id, trade.price, trade.quantity, 1);
+            std::scoped_lock<std::mutex> lock(seller->account_mutex);
+            if (auto* position = locatePosition(seller, trade.symbol)) {
+                position->fetch_sub(static_cast<long>(trade.quantity), std::memory_order_relaxed);
+            }
+            seller->cash.fetch_add(trade_value, std::memory_order_relaxed);
+            seller->buying_power.store(seller->cash.load() - seller->reserved_cash.load(), std::memory_order_relaxed);
+            seller->day_trading_buying_power.store(seller->buying_power.load(), std::memory_order_relaxed);
+            seller->total_trades.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+}
+
+bool AuthenticationManager::reserveForOrder(const Order& order, Price effective_price, std::string& reason) {
+    if (order.order_id.empty()) {
+        reason = "rejected: missing order_id";
+        return false;
+    }
+
+    auto account = getAccount(order.user_id);
+    if (!account) {
+        reason = "rejected: account not found";
+        return false;
+    }
+
+    std::scoped_lock<std::mutex, std::mutex> lock(account->account_mutex, reservations_mutex_);
+
+    if (order_reservations_.find(order.order_id) != order_reservations_.end()) {
+        reason = "rejected: duplicate order_id";
+        return false;
+    }
+
+    if (order.side == 0) {
+        if (effective_price <= 0) {
+            effective_price = Order::fromDouble(0.01);
+        }
+        if (order.quantity > std::numeric_limits<int64_t>::max() / effective_price) {
+            reason = "rejected: order value too large";
+            return false;
+        }
+        CashAmount required_cash = static_cast<CashAmount>(effective_price) * order.quantity;
+        CashAmount available_cash = account->cash.load() - account->reserved_cash.load();
+        if (available_cash < required_cash) {
+            reason = "rejected: insufficient buying power";
+            return false;
+        }
+        account->reserved_cash.fetch_add(required_cash, std::memory_order_relaxed);
+        account->buying_power.store(account->cash.load() - account->reserved_cash.load(), std::memory_order_relaxed);
+        account->day_trading_buying_power.store(account->buying_power.load(), std::memory_order_relaxed);
+        Reservation reservation;
+        reservation.reserved_cash = required_cash;
+        reservation.reserved_quantity = order.quantity;
+        reservation.symbol = order.symbol;
+        reservation.side = order.side;
+        reservation.price = effective_price;
+        order_reservations_.emplace(order.order_id, std::move(reservation));
+        return true;
+    }
+
+    auto* position = locatePosition(account, order.symbol);
+    auto* reserved_position = locateReservedPosition(account, order.symbol);
+    if (!position || !reserved_position) {
+        reason = "rejected: unknown symbol";
+        return false;
+    }
+
+    long available_shares = position->load() - reserved_position->load();
+    if (available_shares < order.quantity) {
+        reason = "rejected: insufficient shares";
+        return false;
+    }
+
+    reserved_position->fetch_add(static_cast<long>(order.quantity), std::memory_order_relaxed);
+    Reservation reservation;
+    reservation.reserved_quantity = order.quantity;
+    reservation.symbol = order.symbol;
+    reservation.side = order.side;
+    reservation.price = effective_price;
+    order_reservations_.emplace(order.order_id, std::move(reservation));
+    return true;
+}
+
+void AuthenticationManager::releaseForOrder(const Order& order, const std::string& /*reason*/) {
+    auto account = getAccount(order.user_id);
+    if (!account) {
+        return;
+    }
+
+    std::scoped_lock<std::mutex, std::mutex> lock(account->account_mutex, reservations_mutex_);
+    auto it = order_reservations_.find(order.order_id);
+    if (it == order_reservations_.end()) {
+        return;
+    }
+
+    const Reservation& reservation = it->second;
+    if (reservation.side == 0 && reservation.reserved_cash > 0) {
+        CashAmount reserved_cash = reservation.reserved_cash;
+        CashAmount current_reserved = account->reserved_cash.load();
+        account->reserved_cash.store(current_reserved >= reserved_cash ? current_reserved - reserved_cash : 0, std::memory_order_relaxed);
+        account->buying_power.store(account->cash.load() - account->reserved_cash.load(), std::memory_order_relaxed);
+        account->day_trading_buying_power.store(account->buying_power.load(), std::memory_order_relaxed);
+    } else if (reservation.side == 1 && reservation.reserved_quantity > 0) {
+        if (auto* reserved_position = locateReservedPosition(account, reservation.symbol)) {
+            long current_reserved = reserved_position->load();
+            long release_qty = static_cast<long>(std::min<int64_t>(reservation.reserved_quantity, current_reserved));
+            reserved_position->store(current_reserved - release_qty, std::memory_order_relaxed);
+        }
+    }
+
+    order_reservations_.erase(it);
+}
+
+std::atomic<long>* AuthenticationManager::locatePosition(Account* account, const std::string& symbol) {
+    if (!account) {
+        return nullptr;
+    }
+    if (symbol == "GOOGL" || symbol == "GOOG") return &account->googl_qty;
+    if (symbol == "AAPL") return &account->aapl_qty;
+    if (symbol == "TSLA") return &account->tsla_qty;
+    if (symbol == "MSFT") return &account->msft_qty;
+    if (symbol == "AMZN") return &account->amzn_qty;
+    return nullptr;
+}
+
+std::atomic<long>* AuthenticationManager::locateReservedPosition(Account* account, const std::string& symbol) {
+    if (!account) {
+        return nullptr;
+    }
+    if (symbol == "GOOGL" || symbol == "GOOG") return &account->reserved_googl;
+    if (symbol == "AAPL") return &account->reserved_aapl;
+    if (symbol == "TSLA") return &account->reserved_tsla;
+    if (symbol == "MSFT") return &account->reserved_msft;
+    if (symbol == "AMZN") return &account->reserved_amzn;
+    return nullptr;
+}
+
+void AuthenticationManager::consumeReservationForTrade(const std::string& order_id,
+                                                       const UserId& user_id,
+                                                       Price execution_price,
+                                                       int64_t quantity,
+                                                       int side) {
+    if (order_id.empty()) {
+        return;
+    }
+
     auto account = getAccount(user_id);
     if (!account) {
-        return false;
+        return;
     }
-    
-    // Update position based on symbol
-    std::atomic<long>* position = nullptr;
-    if (symbol == "GOOGL" || symbol == "GOOG") position = &account->googl_qty;
-    else if (symbol == "AAPL") position = &account->aapl_qty;
-    else if (symbol == "TSLA") position = &account->tsla_qty;
-    else if (symbol == "MSFT") position = &account->msft_qty;
-    else if (symbol == "AMZN") position = &account->amzn_qty;
-    
-    if (position) {
-        long old_position = position->load();
-        position->store(old_position + quantity_change);
-    } else {
-        std::cerr << "Unknown symbol: " << symbol << std::endl;
-        return false;
+
+    std::scoped_lock<std::mutex, std::mutex> lock(account->account_mutex, reservations_mutex_);
+    auto it = order_reservations_.find(order_id);
+    if (it == order_reservations_.end()) {
+        return;
     }
-    
-    // Update cash (subtract for buys, add for sells) - integer arithmetic
-    CashAmount cash_change = -quantity_change * price;
-    CashAmount old_cash = account->cash.load();
-    account->cash.store(old_cash + cash_change);
-    
-    // Update buying power (simplified calculation)
-    account->buying_power.store(account->cash.load());
-    
-    return true;
+
+    Reservation& reservation = it->second;
+    if (side == 0 && reservation.reserved_cash > 0) {
+        CashAmount consumed = static_cast<CashAmount>(execution_price) * quantity;
+        CashAmount reduction = std::min<CashAmount>(reservation.reserved_cash, consumed);
+        CashAmount current_reserved = account->reserved_cash.load();
+        account->reserved_cash.store(current_reserved >= reduction ? current_reserved - reduction : 0, std::memory_order_relaxed);
+        reservation.reserved_cash -= reduction;
+        reservation.reserved_quantity = reservation.reserved_quantity > quantity ? reservation.reserved_quantity - quantity : 0;
+        account->buying_power.store(account->cash.load() - account->reserved_cash.load(), std::memory_order_relaxed);
+        account->day_trading_buying_power.store(account->buying_power.load(), std::memory_order_relaxed);
+    } else if (side == 1 && reservation.reserved_quantity > 0) {
+        auto* reserved_position = locateReservedPosition(account, reservation.symbol);
+        if (reserved_position) {
+            long reduction = static_cast<long>(std::min<int64_t>(reservation.reserved_quantity, quantity));
+            long current_reserved = reserved_position->load();
+            reserved_position->store(current_reserved >= reduction ? current_reserved - reduction : 0, std::memory_order_relaxed);
+            reservation.reserved_quantity -= reduction;
+        }
+    }
+
+    if (reservation.reserved_cash == 0 && reservation.reserved_quantity == 0) {
+        order_reservations_.erase(it);
+    }
 }
 
 size_t AuthenticationManager::getActiveSessionCount() {

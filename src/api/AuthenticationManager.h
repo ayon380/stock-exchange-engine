@@ -9,6 +9,10 @@
 #include <sw/redis++/redis++.h>
 #include "absl/container/flat_hash_map.h"
 #include "../core_engine/DatabaseManager.h"
+#include "../core_engine/Stock.h"
+
+struct Trade;
+struct Order;
 
 // The string-based UUID for user identification
 using UserId = std::string;
@@ -33,6 +37,13 @@ struct Account {
     std::atomic<long long> total_trades;
     std::atomic<long long> realized_pnl;
     std::atomic<bool> is_active;
+    std::atomic<CashAmount> reserved_cash;
+    std::atomic<long> reserved_aapl;
+    std::atomic<long> reserved_googl;
+    std::atomic<long> reserved_msft;
+    std::atomic<long> reserved_amzn;
+    std::atomic<long> reserved_tsla;
+    mutable std::mutex account_mutex;
     
     // Constructor to initialize atomic values
     Account(CashAmount initial_cash = 0) 
@@ -46,7 +57,13 @@ struct Account {
         , day_trading_buying_power(initial_cash)
         , total_trades(0)
         , realized_pnl(0)
-        , is_active(true) {
+        , is_active(true)
+        , reserved_cash(0)
+        , reserved_aapl(0)
+        , reserved_googl(0)
+        , reserved_msft(0)
+        , reserved_amzn(0)
+        , reserved_tsla(0) {
     }
     
     // Copy constructor for atomic types
@@ -61,7 +78,13 @@ struct Account {
         , day_trading_buying_power(other.day_trading_buying_power.load())
         , total_trades(other.total_trades.load())
         , realized_pnl(other.realized_pnl.load())
-        , is_active(other.is_active.load()) {
+        , is_active(other.is_active.load())
+        , reserved_cash(other.reserved_cash.load())
+        , reserved_aapl(other.reserved_aapl.load())
+        , reserved_googl(other.reserved_googl.load())
+        , reserved_msft(other.reserved_msft.load())
+        , reserved_amzn(other.reserved_amzn.load())
+        , reserved_tsla(other.reserved_tsla.load()) {
     }
 
     // Helper functions for conversion
@@ -144,6 +167,9 @@ public:
     // Authentication methods
     AuthResult authenticateConnection(ConnectionId conn_id, const std::string& jwt_token);
     bool isAuthenticated(ConnectionId conn_id);
+    bool reserveForOrder(const Order& order, Price effective_price, std::string& reason);
+    void releaseForOrder(const Order& order, const std::string& reason);
+    void applyTrade(const Trade& trade);
     UserId getUserId(ConnectionId conn_id);
     
     // Account management
@@ -154,8 +180,6 @@ public:
     void removeSession(ConnectionId conn_id);
     void updateLastActivity(ConnectionId conn_id);
     void cleanupInactiveSessions(std::chrono::minutes timeout = std::chrono::minutes(30));
-    
-    // Risk management helpers
     bool checkBuyingPower(const UserId& user_id, CashAmount required_cash);
     bool updatePosition(const UserId& user_id, const std::string& symbol, long quantity_change, Price price);
     
@@ -167,6 +191,25 @@ public:
     size_t getLoadedAccountCount();
 
 private:
+    // Risk management helpers
+    struct Reservation {
+        CashAmount reserved_cash{0};
+        int64_t reserved_quantity{0};
+        std::string symbol;
+        int side{0};
+        Price price{0};
+    };
+
+    std::atomic<long>* locatePosition(Account* account, const std::string& symbol);
+    std::atomic<long>* locateReservedPosition(Account* account, const std::string& symbol);
+    void consumeReservationForTrade(const std::string& order_id,
+                                    const UserId& user_id,
+                                    Price execution_price,
+                                    int64_t quantity,
+                                    int side);
+    absl::flat_hash_map<std::string, Reservation> order_reservations_;
+    std::mutex reservations_mutex_;
+
     // Helper methods
     bool validateJWTWithRedis(const std::string& jwt_token, UserId& user_id);
     bool createAccountEntry(const UserId& user_id, const Account& account_data);

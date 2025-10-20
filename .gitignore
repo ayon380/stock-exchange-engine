@@ -48,3 +48,12 @@ Thumbs.db
 # If it contains build output or other generated content, keep this line.
 # If it contains source code, remove this line.
 p/
+
+# --- SSL/TLS Certificates ---
+# CRITICAL: Never commit private keys to version control
+*.key
+*.pem
+server.crt
+server.csr
+*.pfx
+*.p12

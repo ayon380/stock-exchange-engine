@@ -2,6 +2,7 @@
 #include <thread>
 #include <boost/asio.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ssl.hpp>
 #include <atomic>
 #include <memory>
 #include <vector>
@@ -68,16 +69,19 @@ struct BinaryOrderResponse {
 };
 #pragma pack(pop)
 
-// TCP connection for handling client sessions
+// TCP connection for handling client sessions (SSL/TLS encrypted)
 class TCPConnection : public std::enable_shared_from_this<TCPConnection> {
 private:
-    boost::asio::ip::tcp::socket socket_;
+    boost::asio::ssl::stream<boost::asio::ip::tcp::socket> ssl_socket_;
     std::array<char, 8192> buffer_;
     std::vector<char> message_buffer_;
     StockExchange* exchange_;
     AuthenticationManager* auth_manager_;
     std::atomic<bool> connected_{true};
     ConnectionId connection_id_;
+    
+    // Callback to notify server when connection should be cleaned up
+    std::function<void(ConnectionId)> server_cleanup_callback_;
 
     // For batched responses
     std::vector<std::vector<char>> pending_responses_;
@@ -91,12 +95,19 @@ private:
     static constexpr std::chrono::microseconds BATCH_TIMEOUT{100};
 
 public:
-    TCPConnection(boost::asio::ip::tcp::socket socket, StockExchange* exchange, AuthenticationManager* auth_manager);
+    TCPConnection(boost::asio::ssl::stream<boost::asio::ip::tcp::socket> socket, 
+                  StockExchange* exchange, 
+                  AuthenticationManager* auth_manager);
     ~TCPConnection();
 
     void start();
     void stop();
     ConnectionId getConnectionId() const { return connection_id_; }
+    
+    // Set cleanup callback to notify server when connection closes
+    void setCleanupCallback(std::function<void(ConnectionId)> callback) {
+        server_cleanup_callback_ = std::move(callback);
+    }
 
 private:
     void readHeader();
@@ -108,10 +119,11 @@ private:
     void handleError(const boost::system::error_code& error);
 };
 
-// High-performance TCP server for order submission
+// High-performance TCP server for order submission (TLS/SSL enabled)
 class TCPServer {
 private:
     boost::asio::io_context io_context_;
+    boost::asio::ssl::context ssl_context_;
     boost::asio::ip::tcp::acceptor acceptor_;
     std::vector<std::thread> worker_threads_;
     std::atomic<bool> running_{false};
@@ -140,7 +152,11 @@ private:
     std::atomic<bool> batch_processor_running_{false};
 
 public:
-    TCPServer(const std::string& address, uint16_t port, StockExchange* exchange, AuthenticationManager* auth_manager);
+    TCPServer(const std::string& address, uint16_t port, 
+              StockExchange* exchange, 
+              AuthenticationManager* auth_manager,
+              const std::string& cert_file = "server.crt",
+              const std::string& key_file = "server.key");
     ~TCPServer();
 
     void start();

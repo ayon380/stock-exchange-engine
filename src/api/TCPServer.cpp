@@ -15,6 +15,8 @@
 #include <thread>
 #include <algorithm>
 #include <fstream>
+#include <mutex>
+#include <sstream>
 #include "AuthenticationManager.h"
 
 // CPU frequency calibration for RDTSC timing
@@ -53,6 +55,18 @@ static std::ofstream& get_perf_file() {
     return perf_file;
 }
 
+static std::mutex& get_perf_mutex() {
+    static std::mutex perf_mutex;
+    return perf_mutex;
+}
+
+static void append_perf_log(const std::string& line) {
+    std::lock_guard<std::mutex> lock(get_perf_mutex());
+    auto& file = get_perf_file();
+    file << line << '\n';
+    file.flush();
+}
+
 // Helper function for 64-bit network to host byte order conversion
 #ifndef ntohll
 uint64_t ntohll(uint64_t value) {
@@ -75,10 +89,12 @@ double uint64_to_double(uint64_t value) {
 }
 
 // TCPConnection implementation
-TCPConnection::TCPConnection(boost::asio::ip::tcp::socket socket, StockExchange* exchange, AuthenticationManager* auth_manager)
-    : socket_(std::move(socket)), exchange_(exchange), auth_manager_(auth_manager) {
+TCPConnection::TCPConnection(boost::asio::ssl::stream<boost::asio::ip::tcp::socket> socket, 
+                             StockExchange* exchange, 
+                             AuthenticationManager* auth_manager)
+    : ssl_socket_(std::move(socket)), exchange_(exchange), auth_manager_(auth_manager) {
     // Generate unique connection ID (using socket native handle or a counter)
-    connection_id_ = static_cast<ConnectionId>(socket_.native_handle());
+    connection_id_ = static_cast<ConnectionId>(ssl_socket_.lowest_layer().native_handle());
 }
 
 TCPConnection::~TCPConnection() {
@@ -90,95 +106,156 @@ TCPConnection::~TCPConnection() {
 
 void TCPConnection::start() {
     connected_.store(true);
-    readHeader();
+    
+    // Perform SSL/TLS handshake before reading data
+    auto self = shared_from_this();
+    ssl_socket_.async_handshake(boost::asio::ssl::stream_base::server,
+        [this, self](const boost::system::error_code& error) {
+            if (!error) {
+                ENGINE_LOG_DEV(std::cout << "TCP Connection: SSL handshake successful for connection " 
+                                         << connection_id_ << std::endl;);
+                readHeader();  // Now all communication is encrypted!
+            } else {
+                std::cerr << "TCP Connection: SSL handshake failed: " << error.message() << std::endl;
+                handleError(error);
+            }
+        });
 }
 
 void TCPConnection::stop() {
     if (!connected_.exchange(false)) return;
 
     boost::system::error_code ec;
-    socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
-    socket_.close(ec);
+    
+    // Shutdown SSL stream first
+    ssl_socket_.async_shutdown([](const boost::system::error_code&) {
+        // SSL shutdown complete (ignore errors during shutdown)
+    });
+    
+    // Then shutdown the underlying socket
+    ssl_socket_.lowest_layer().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+    ssl_socket_.lowest_layer().close(ec);
 }
 
 void TCPConnection::readHeader() {
     if (!connected_.load()) return;
 
     auto self = shared_from_this();
-    boost::asio::async_read(socket_,
-        boost::asio::buffer(buffer_.data(), sizeof(uint32_t)),
-        [this, self](const boost::system::error_code& error, std::size_t bytes_transferred) {
-            if (error) {
-                handleError(error);
-                return;
-            }
+    
+    try {
+        boost::asio::async_read(ssl_socket_,
+            boost::asio::buffer(buffer_.data(), sizeof(uint32_t)),
+            [this, self](const boost::system::error_code& error, std::size_t bytes_transferred) {
+                try {
+                    if (error) {
+                        handleError(error);
+                        return;
+                    }
 
-            if (bytes_transferred != sizeof(uint32_t)) {
-                handleError(boost::asio::error::make_error_code(boost::asio::error::misc_errors::eof));
-                return;
-            }
+                    if (bytes_transferred != sizeof(uint32_t)) {
+                        handleError(boost::asio::error::make_error_code(boost::asio::error::misc_errors::eof));
+                        return;
+                    }
 
-            uint32_t message_length;
-            std::memcpy(&message_length, buffer_.data(), sizeof(uint32_t));
-            message_length = ntohl(message_length); // Network to host byte order
+                    uint32_t message_length;
+                    std::memcpy(&message_length, buffer_.data(), sizeof(uint32_t));
+                    message_length = ntohl(message_length); // Network to host byte order
 
-            // The message_length includes the 4-byte length header, so subtract it
-            size_t body_length = message_length - sizeof(uint32_t);
+                    // Guard against malformed frames that are smaller than the header itself
+                    if (message_length < sizeof(uint32_t) + sizeof(MessageType)) {
+                        std::cerr << "TCP Connection: Invalid message length header: " << message_length << std::endl;
+                        handleError(boost::asio::error::make_error_code(boost::asio::error::invalid_argument));
+                        return;
+                    }
 
-            if (message_length > 8192 || body_length < 1) { // Minimum 1 byte for message type
-                std::cerr << "TCP Connection: Invalid message length: " << message_length 
-                         << " (body: " << body_length << ")" << std::endl;
-                handleError(boost::asio::error::make_error_code(boost::asio::error::invalid_argument));
-                return;
-            }
+                    // The message_length includes the 4-byte length header, so subtract it
+                    size_t body_length = message_length - sizeof(uint32_t);
 
-            readBody(body_length);
-        });
+                    if (message_length > buffer_.size() || message_length > 8192 || body_length < sizeof(MessageType)) {
+                        std::cerr << "TCP Connection: Invalid message length: " << message_length 
+                                 << " (body: " << body_length << ")" << std::endl;
+                        handleError(boost::asio::error::make_error_code(boost::asio::error::invalid_argument));
+                        return;
+                    }
+
+                    readBody(body_length);
+                } catch (const std::exception& e) {
+                    std::cerr << "TCP Connection: Exception in readHeader callback: " << e.what() << std::endl;
+                    stop();
+                } catch (...) {
+                    std::cerr << "TCP Connection: Unknown exception in readHeader callback" << std::endl;
+                    stop();
+                }
+            });
+    } catch (const std::exception& e) {
+        std::cerr << "TCP Connection: Exception in readHeader: " << e.what() << std::endl;
+        stop();
+    } catch (...) {
+        std::cerr << "TCP Connection: Unknown exception in readHeader" << std::endl;
+        stop();
+    }
 }
 
 void TCPConnection::readBody(size_t expected_length) {
     if (!connected_.load()) return;
 
-    message_buffer_.resize(expected_length);
-    auto self = shared_from_this();
+    try {
+        message_buffer_.resize(expected_length);
+        auto self = shared_from_this();
 
-    boost::asio::async_read(socket_,
-        boost::asio::buffer(message_buffer_.data(), expected_length),
-        [=](const boost::system::error_code& error, std::size_t bytes_transferred) {
-            if (error) {
-                handleError(error);
-                return;
-            }
+        boost::asio::async_read(ssl_socket_,
+            boost::asio::buffer(message_buffer_.data(), expected_length),
+            [this, self, expected_length](const boost::system::error_code& error, std::size_t bytes_transferred) {
+                try {
+                    if (error) {
+                        handleError(error);
+                        return;
+                    }
 
-            if (bytes_transferred != expected_length) {
-                handleError(boost::asio::error::make_error_code(boost::asio::error::misc_errors::eof));
-                return;
-            }
+                    if (bytes_transferred != expected_length) {
+                        handleError(boost::asio::error::make_error_code(boost::asio::error::misc_errors::eof));
+                        return;
+                    }
 
-            // Process message immediately instead of batching
-            processMessage(message_buffer_);
-            
-            readHeader(); // Continue reading next message
-        });
+                    // Process message immediately instead of batching
+                    processMessage(message_buffer_);
+                    
+                    readHeader(); // Continue reading next message
+                } catch (const std::exception& e) {
+                    std::cerr << "TCP Connection: Exception in readBody callback: " << e.what() << std::endl;
+                    stop();
+                } catch (...) {
+                    std::cerr << "TCP Connection: Unknown exception in readBody callback" << std::endl;
+                    stop();
+                }
+            });
+    } catch (const std::exception& e) {
+        std::cerr << "TCP Connection: Exception in readBody: " << e.what() << std::endl;
+        stop();
+    } catch (...) {
+        std::cerr << "TCP Connection: Unknown exception in readBody" << std::endl;
+        stop();
+    }
 }
 
 void TCPConnection::processMessage(const std::vector<char>& data) {
-    if (data.empty()) {
-        std::cerr << "TCP Connection: Empty message received" << std::endl;
-        return;
-    }
+    try {
+        if (data.empty()) {
+            std::cerr << "TCP Connection: Empty message received" << std::endl;
+            return;
+        }
 
-    // Peek at message type
-    if (data.size() < sizeof(MessageType)) {
-        std::cerr << "TCP Connection: Message too small to determine type" << std::endl;
-        return;
-    }
+        // Peek at message type
+        if (data.size() < sizeof(MessageType)) {
+            std::cerr << "TCP Connection: Message too small to determine type" << std::endl;
+            return;
+        }
 
-    MessageType msg_type = *reinterpret_cast<const MessageType*>(data.data());
-    
-    switch (msg_type) {
-        case MessageType::LOGIN_REQUEST:
-            processLoginRequest(data);
+        MessageType msg_type = *reinterpret_cast<const MessageType*>(data.data());
+        
+        switch (msg_type) {
+            case MessageType::LOGIN_REQUEST:
+                processLoginRequest(data);
             break;
             
         case MessageType::SUBMIT_ORDER:
@@ -219,143 +296,200 @@ void TCPConnection::processMessage(const std::vector<char>& data) {
         default:
             std::cerr << "TCP Connection: Unknown message type: " << static_cast<int>(msg_type) << std::endl;
             break;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "TCP Connection: Exception in processMessage: " << e.what() << std::endl;
+        stop();
+    } catch (...) {
+        std::cerr << "TCP Connection: Unknown exception in processMessage" << std::endl;
+        stop();
     }
 }
 
 void TCPConnection::sendResponse(const std::vector<char>& response, uint64_t start_cycles) {
     if (!connected_.load()) return;
 
-    auto self = shared_from_this();
-    boost::asio::async_write(socket_,
-        boost::asio::buffer(response.data(), response.size()),
-        [this, self, start_cycles](const boost::system::error_code& error, std::size_t /*bytes_transferred*/) {
-            if (error) {
-                handleError(error);
-            } else if (start_cycles != 0) {
-                uint64_t end_cycles = get_cycles();
-                uint64_t total_cycles = end_cycles - start_cycles;
-                long long total_us = total_cycles * 1000000LL / get_cpu_freq_hz();
-                get_perf_file() << "Total trip time: " << total_us << " microseconds" << std::endl;
-                
-                // Log slow total trip
-                if (total_us > 10000) {
-                    get_perf_file() << "Slow total trip: " << total_us << "us" << std::endl;
+    try {
+        auto self = shared_from_this();
+        boost::asio::async_write(ssl_socket_,
+            boost::asio::buffer(response.data(), response.size()),
+            [this, self, start_cycles](const boost::system::error_code& error, std::size_t /*bytes_transferred*/) {
+                try {
+                    if (error) {
+                        handleError(error);
+                    } else if (start_cycles != 0) {
+                        uint64_t end_cycles = get_cycles();
+                        uint64_t total_cycles = end_cycles - start_cycles;
+                        long long total_us = total_cycles * 1000000LL / get_cpu_freq_hz();
+                        append_perf_log("Total trip time: " + std::to_string(total_us) + " microseconds");
+                        
+                        // Log slow total trip
+                        if (total_us > 10000) {
+                            append_perf_log("Slow total trip: " + std::to_string(total_us) + "us");
+                        }
+                        
+                        // CRITICAL FIX: Use thread_local to prevent data race across worker threads
+                        // Each thread maintains its own latency collection
+                        thread_local std::vector<long long> total_latencies;
+                        total_latencies.push_back(total_us);
+                        if (total_latencies.size() >= 50) {
+                            std::sort(total_latencies.begin(), total_latencies.end());
+                            long long p50 = total_latencies[25];
+                            long long p90 = total_latencies[45];
+                            long long p99 = total_latencies[49];
+                            long long max_lat = total_latencies.back();
+                            std::ostringstream oss;
+                            oss << "Total trip latency percentiles: p50=" << p50
+                                << "us, p90=" << p90
+                                << "us, p99=" << p99
+                                << "us, max=" << max_lat << "us";
+                            append_perf_log(oss.str());
+                            total_latencies.clear();
+                        }
+                    }
+                } catch (const std::exception& e) {
+                    std::cerr << "TCP Connection: Exception in sendResponse callback: " << e.what() << std::endl;
+                } catch (...) {
+                    std::cerr << "TCP Connection: Unknown exception in sendResponse callback" << std::endl;
                 }
-                
-                // Collect latencies for percentiles
-                static std::vector<long long> total_latencies;
-                total_latencies.push_back(total_us);
-                if (total_latencies.size() >= 50) {
-                    std::sort(total_latencies.begin(), total_latencies.end());
-                    long long p50 = total_latencies[25];
-                    long long p90 = total_latencies[45];
-                    long long p99 = total_latencies[49];
-                    long long max_lat = total_latencies.back();
-                    get_perf_file() << "Total trip latency percentiles: p50=" << p50 << "us, p90=" << p90 << "us, p99=" << p99 << "us, max=" << max_lat << "us" << std::endl;
-                    total_latencies.clear();
-                }
-            }
-        });
+            });
+    } catch (const std::exception& e) {
+        std::cerr << "TCP Connection: Exception in sendResponse: " << e.what() << std::endl;
+        stop();
+    } catch (...) {
+        std::cerr << "TCP Connection: Unknown exception in sendResponse" << std::endl;
+        stop();
+    }
 }
 
 void TCPConnection::handleError(const boost::system::error_code& error) {
-    if (error != boost::asio::error::eof &&
-        error != boost::asio::error::connection_reset &&
-        error != boost::asio::error::operation_aborted) {
-        std::cerr << "TCP connection error: " << error.message() << " (code: " << error.value() << ")" << std::endl;
+    // Silently handle expected disconnection errors
+    bool is_expected_disconnect = (
+        error == boost::asio::error::eof ||
+        error == boost::asio::error::connection_reset ||
+        error == boost::asio::error::operation_aborted ||
+        error == boost::asio::error::broken_pipe ||
+        error.value() == 1 ||  // stream truncated (SSL short read)
+        error.category() == boost::asio::error::get_ssl_category()
+    );
+    
+    if (!is_expected_disconnect) {
+        std::cerr << "TCP connection error: " << error.message() 
+                  << " (code: " << error.value() << ")" << std::endl;
+    } else {
+        ENGINE_LOG_DEV(std::cout << "TCP connection closed normally for connection " 
+                                  << connection_id_ << std::endl;);
     }
+    
     stop();
+    
+    // CRITICAL FIX: Remove connection from server's connection map when an error occurs
+    // This ensures the shared_ptr is released and the TCPConnection destructor runs,
+    // which calls auth_manager_->removeSession() to prevent session hijacking
+    // (Without this, stale connections stay in the map and sessions persist across reconnects)
+    if (server_cleanup_callback_) {
+        server_cleanup_callback_(connection_id_);
+    }
 }
 
 void TCPConnection::processLoginRequest(const std::vector<char>& data) {
-    if (data.size() < sizeof(BinaryLoginRequestBody)) {
-        std::cerr << "TCP Connection: Login message too small" << std::endl;
-        return;
-    }
+    try {
+        if (data.size() < sizeof(BinaryLoginRequestBody)) {
+            std::cerr << "TCP Connection: Login message too small" << std::endl;
+            return;
+        }
 
-    const BinaryLoginRequestBody* request = reinterpret_cast<const BinaryLoginRequestBody*>(data.data());
-    uint32_t token_len = ntohl(request->token_len);
-    
-    if (data.size() < sizeof(BinaryLoginRequestBody) + token_len) {
-        std::cerr << "TCP Connection: Login message size mismatch" << std::endl;
-        return;
-    }
+        const BinaryLoginRequestBody* request = reinterpret_cast<const BinaryLoginRequestBody*>(data.data());
+        uint32_t token_len = ntohl(request->token_len);
+        
+        if (data.size() < sizeof(BinaryLoginRequestBody) + token_len) {
+            std::cerr << "TCP Connection: Login message size mismatch" << std::endl;
+            return;
+        }
 
-    // Extract JWT token
-    std::string jwt_token(data.data() + sizeof(BinaryLoginRequestBody), token_len);
-    
-    ENGINE_LOG_DEV(std::cout << "TCP Connection: Processing login request for connection "
-                             << connection_id_ << std::endl;);
-    
-    // Authenticate with AuthenticationManager
-    AuthResult auth_result = auth_manager_->authenticateConnection(connection_id_, jwt_token);
-    
-    bool success = (auth_result == AuthResult::SUCCESS);
-    std::string message;
-    
-    switch (auth_result) {
-        case AuthResult::SUCCESS:
-            message = "Login successful";
-            break;
-        case AuthResult::INVALID_TOKEN:
-            message = "Invalid or expired token";
-            break;
-        case AuthResult::REDIS_ERROR:
-            message = "Authentication service error";
-            break;
-        case AuthResult::USER_NOT_FOUND:
-            message = "User account not found";
-            break;
-        case AuthResult::ALREADY_AUTHENTICATED:
-            message = "Already authenticated";
-            success = true; // Treat as success
-            break;
-        default:
-            message = "Unknown authentication error";
-            break;
-    }
-    
-    // Prepare response
-    size_t response_size = sizeof(BinaryLoginResponse) + message.size();
-    std::vector<char> response(response_size);
-    
-    BinaryLoginResponse* resp = reinterpret_cast<BinaryLoginResponse*>(response.data());
-    resp->message_length = htonl(response_size);
-    resp->type = static_cast<uint8_t>(MessageType::LOGIN_RESPONSE);
-    resp->success = success ? 1 : 0;
-    resp->message_len = htonl(message.size());
-    
-    // Copy message
-    std::memcpy(response.data() + sizeof(BinaryLoginResponse), message.data(), message.size());
-    
-    sendResponse(response);
-    
-    if (!success) {
-        // Close connection on failed authentication
-        std::cerr << "TCP Connection: Authentication failed for connection " << connection_id_ << ": " << message << std::endl;
+        // Extract JWT token
+        std::string jwt_token(data.data() + sizeof(BinaryLoginRequestBody), token_len);
+        
+        ENGINE_LOG_DEV(std::cout << "TCP Connection: Processing login request for connection "
+                                 << connection_id_ << std::endl;);
+        
+        // Authenticate with AuthenticationManager
+        AuthResult auth_result = auth_manager_->authenticateConnection(connection_id_, jwt_token);
+        
+        bool success = (auth_result == AuthResult::SUCCESS);
+        std::string message;
+        
+        switch (auth_result) {
+            case AuthResult::SUCCESS:
+                message = "Login successful";
+                break;
+            case AuthResult::INVALID_TOKEN:
+                message = "Invalid or expired token";
+                break;
+            case AuthResult::REDIS_ERROR:
+                message = "Authentication service error";
+                break;
+            case AuthResult::USER_NOT_FOUND:
+                message = "User account not found";
+                break;
+            case AuthResult::ALREADY_AUTHENTICATED:
+                message = "Already authenticated";
+                success = true; // Treat as success
+                break;
+            default:
+                message = "Unknown authentication error";
+                break;
+        }
+        
+        // Prepare response
+        size_t response_size = sizeof(BinaryLoginResponse) + message.size();
+        std::vector<char> response(response_size);
+        
+        BinaryLoginResponse* resp = reinterpret_cast<BinaryLoginResponse*>(response.data());
+        resp->message_length = htonl(response_size);
+        resp->type = static_cast<uint8_t>(MessageType::LOGIN_RESPONSE);
+        resp->success = success ? 1 : 0;
+        resp->message_len = htonl(message.size());
+        
+        // Copy message
+        std::memcpy(response.data() + sizeof(BinaryLoginResponse), message.data(), message.size());
+        
+        sendResponse(response);
+        
+        if (!success) {
+            // Close connection on failed authentication
+            std::cerr << "TCP Connection: Authentication failed for connection " << connection_id_ << ": " << message << std::endl;
+            stop();
+        } else {
+        ENGINE_LOG_DEV(std::cout << "TCP Connection: Authentication successful for connection "
+                     << connection_id_ << std::endl;);
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "TCP Connection: Exception in processLoginRequest: " << e.what() << std::endl;
         stop();
-    } else {
-    ENGINE_LOG_DEV(std::cout << "TCP Connection: Authentication successful for connection "
-                 << connection_id_ << std::endl;);
+    } catch (...) {
+        std::cerr << "TCP Connection: Unknown exception in processLoginRequest" << std::endl;
+        stop();
     }
 }
 
 void TCPConnection::processOrderRequest(const std::vector<char>& data) {
-    // Sample metrics every 1000 orders to minimize overhead
-    static std::atomic<uint64_t> metrics_counter{0};
-    uint64_t current_count = metrics_counter.fetch_add(1, std::memory_order_relaxed);
-    bool should_measure = (current_count % 1000 == 0);
+    try {
+        // Sample metrics every 1000 orders to minimize overhead
+        static std::atomic<uint64_t> metrics_counter{0};
+        uint64_t current_count = metrics_counter.fetch_add(1, std::memory_order_relaxed);
+        bool should_measure = (current_count % 1000 == 0);
 
-    uint64_t total_start_cycles = 0;
-    if (should_measure) {
-        total_start_cycles = get_cycles();
-    }
+        uint64_t total_start_cycles = 0;
+        if (should_measure) {
+            total_start_cycles = get_cycles();
+        }
 
-    if (data.size() < sizeof(BinaryOrderRequestBody)) {
-        std::cerr << "TCP Connection: Order message too small: " << data.size() 
-                  << " bytes, expected at least " << sizeof(BinaryOrderRequestBody) << std::endl;
-        return;
-    }
+        if (data.size() < sizeof(BinaryOrderRequestBody)) {
+            std::cerr << "TCP Connection: Order message too small: " << data.size() 
+                      << " bytes, expected at least " << sizeof(BinaryOrderRequestBody) << std::endl;
+            return;
+        }
 
     const BinaryOrderRequestBody* request = reinterpret_cast<const BinaryOrderRequestBody*>(data.data());
 
@@ -453,15 +587,16 @@ void TCPConnection::processOrderRequest(const std::vector<char>& data) {
         uint64_t engine_end_cycles = get_cycles();
         uint64_t engine_cycles = engine_end_cycles - engine_start_cycles;
         engine_us = engine_cycles * 1000000LL / get_cpu_freq_hz();
-        get_perf_file() << "Order execution time: " << engine_us << " microseconds for order " << order_id << std::endl;
+        append_perf_log("Order execution time: " + std::to_string(engine_us) + " microseconds for order " + order_id);
         
         // Log slow orders
         if (engine_us > 1000) {
-            get_perf_file() << "Slow order: " << order_id << " engine time " << engine_us << "us" << std::endl;
+            append_perf_log("Slow order: " + order_id + " engine time " + std::to_string(engine_us) + "us");
         }
         
-        // Collect latencies for percentiles
-        static std::vector<long long> engine_latencies;
+        // CRITICAL FIX: Use thread_local to prevent data race across worker threads
+        // Each thread maintains its own latency collection
+        thread_local std::vector<long long> engine_latencies;
         engine_latencies.push_back(engine_us);
         if (engine_latencies.size() >= 50) {
             std::sort(engine_latencies.begin(), engine_latencies.end());
@@ -469,7 +604,12 @@ void TCPConnection::processOrderRequest(const std::vector<char>& data) {
             long long p90 = engine_latencies[45];
             long long p99 = engine_latencies[49];
             long long max_lat = engine_latencies.back();
-            get_perf_file() << "Engine latency percentiles: p50=" << p50 << "us, p90=" << p90 << "us, p99=" << p99 << "us, max=" << max_lat << "us" << std::endl;
+            std::ostringstream oss;
+            oss << "Engine latency percentiles: p50=" << p50
+                << "us, p90=" << p90
+                << "us, p99=" << p99
+                << "us, max=" << max_lat << "us";
+            append_perf_log(oss.str());
             engine_latencies.clear();
         }
     }
@@ -478,12 +618,6 @@ void TCPConnection::processOrderRequest(const std::vector<char>& data) {
 
     // Update account position if order was accepted
     bool accepted = (result == "accepted");
-    if (accepted) {
-        // Update position in AuthenticationManager
-        long position_change = (request->side == 0) ? quantity : -quantity; // BUY = positive, SELL = negative
-        auth_manager_->updatePosition(authenticated_user_id, symbol, position_change, static_cast<Price>(correct_price * 100.0 + 0.5));
-    }
-
     // Prepare response
     std::string message = accepted ? "Order accepted" : result;
 
@@ -504,11 +638,52 @@ void TCPConnection::processOrderRequest(const std::vector<char>& data) {
     std::memcpy(string_data, message.data(), message.size());
 
     sendResponse(response, should_measure ? total_start_cycles : 0);
+    
+    } catch (const std::exception& e) {
+        std::cerr << "TCP Connection: Exception in processOrderRequest: " << e.what() << std::endl;
+        // Don't stop connection on order processing error, just skip this order
+    } catch (...) {
+        std::cerr << "TCP Connection: Unknown exception in processOrderRequest" << std::endl;
+        // Don't stop connection on order processing error, just skip this order
+    }
 }
 
 // TCPServer implementation
-TCPServer::TCPServer(const std::string& address, uint16_t port, StockExchange* exchange, AuthenticationManager* auth_manager)
-    : acceptor_(io_context_), exchange_(exchange), auth_manager_(auth_manager) {
+TCPServer::TCPServer(const std::string& address, uint16_t port, 
+                     StockExchange* exchange, 
+                     AuthenticationManager* auth_manager,
+                     const std::string& cert_file,
+                     const std::string& key_file)
+    : acceptor_(io_context_), 
+      ssl_context_(boost::asio::ssl::context::tlsv13),
+      exchange_(exchange), 
+      auth_manager_(auth_manager) {
+    
+    try {
+        // Configure SSL context with strong security settings
+        ssl_context_.set_options(
+            boost::asio::ssl::context::default_workarounds |
+            boost::asio::ssl::context::no_sslv2 |
+            boost::asio::ssl::context::no_sslv3 |
+            boost::asio::ssl::context::no_tlsv1 |
+            boost::asio::ssl::context::no_tlsv1_1 |
+            boost::asio::ssl::context::single_dh_use);
+        
+        // Load server certificate and private key
+        ssl_context_.use_certificate_chain_file(cert_file);
+        ssl_context_.use_private_key_file(key_file, boost::asio::ssl::context::pem);
+        
+        std::cout << "✅ SSL/TLS enabled with certificate: " << cert_file << std::endl;
+        std::cout << "🔒 All TCP connections will be encrypted" << std::endl;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "⚠️  SSL certificate not found. Creating self-signed certificate..." << std::endl;
+        std::cerr << "   Run this command to generate certificates:" << std::endl;
+        std::cerr << "   openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.crt -days 365 -nodes" << std::endl;
+        std::cerr << "   Error: " << e.what() << std::endl;
+        throw std::runtime_error("SSL initialization failed: " + std::string(e.what()));
+    }
+    
     boost::system::error_code ec;
     auto addr = boost::asio::ip::make_address(address, ec);
     if (ec) {
@@ -617,27 +792,41 @@ void TCPServer::stop() {
 void TCPServer::acceptConnection() {
     if (!running_.load()) return;
     
-    acceptor_.async_accept(
-        [this](const boost::system::error_code& error, boost::asio::ip::tcp::socket socket) {
+    // Create a new SSL socket for the incoming connection
+    auto ssl_socket = std::make_shared<boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>(
+        io_context_, ssl_context_);
+    
+    acceptor_.async_accept(ssl_socket->lowest_layer(),
+        [this, ssl_socket](const boost::system::error_code& error) {
             if (error) {
                 if (error != boost::asio::error::operation_aborted && running_.load()) {
                     std::cerr << "TCP Server: Accept error: " << error.message() << std::endl;
                 }
             } else if (running_.load()) {
                 ENGINE_LOG_DEV(std::cout << "TCP Server: New client connected from "
-                                         << socket.remote_endpoint().address().to_string()
-                                         << ":" << socket.remote_endpoint().port() << std::endl;);
-                         
-                auto connection = std::make_shared<TCPConnection>(std::move(socket), exchange_, auth_manager_);
+                                         << ssl_socket->lowest_layer().remote_endpoint().address().to_string()
+                                         << ":" << ssl_socket->lowest_layer().remote_endpoint().port() 
+                                         << " (SSL handshake pending...)" << std::endl;);
+                           
+                auto connection = std::make_shared<TCPConnection>(std::move(*ssl_socket), exchange_, auth_manager_);
+                  
+                // CRITICAL FIX: Set cleanup callback so connection can remove itself from map
+                // This prevents stale connections from persisting and enables proper session cleanup
+                ConnectionId conn_id = connection->getConnectionId();
+                connection->setCleanupCallback([this, conn_id](ConnectionId id) {
+                    std::lock_guard<std::mutex> lock(connections_mutex_);
+                    connections_.erase(std::to_string(id));
+                });
+                  
                 connection->start();
 
                 // Store connection for cleanup
                 {
                     std::lock_guard<std::mutex> lock(connections_mutex_);
-                    connections_[std::to_string(connection->getConnectionId())] = connection;
+                    connections_[std::to_string(conn_id)] = connection;
                 }
             }
-
+            
             if (running_.load()) {
                 acceptConnection(); // Continue accepting
             }

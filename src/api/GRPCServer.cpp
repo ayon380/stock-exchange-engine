@@ -25,27 +25,6 @@ static std::ofstream& get_perf_file() {
     return perf_file;
 }
 
-void GRPCServer::convertToCoreOrder(const stock::OrderRequest& req, Order& order) {
-    order = Order{
-        req.order_id(),
-        req.user_id(),
-        req.symbol(),
-        static_cast<int>(req.side()),
-        static_cast<int>(req.type()),
-        static_cast<int64_t>(req.quantity()),
-        static_cast<Price>(req.price() * 100.0 + 0.5), // Convert double to Price
-        static_cast<int64_t>(req.timestamp_ms())
-    };
-}
-
-void GRPCServer::convertFromCoreOrderStatus(const Order& core, stock::OrderStatusResponse& resp) {
-    resp.set_order_id(core.order_id);
-    resp.set_exists(!core.order_id.empty());
-    resp.set_remaining_qty(core.remaining_qty);
-    resp.set_status(core.status);
-    // Trades list omitted here; add if you track per-order trades separately
-}
-
 void GRPCServer::convertFromCoreMarketData(const MarketDataUpdate& core, stock::MarketDataUpdate& out) {
     out.set_symbol(core.symbol);
     out.set_last_price(static_cast<double>(core.last_price) / 100.0);
@@ -80,135 +59,20 @@ grpc::Status GRPCServer::SubmitOrder(grpc::ServerContext* context,
                                      const stock::OrderRequest* request,
                                      stock::OrderResponse* response) {
     (void)context;
-    auto grpc_start = std::chrono::high_resolution_clock::now();
-
-    ENGINE_LOG_DEV(std::cout << "Received order: " << request->order_id()
-                             << " type: " << request->type()
-                             << " qty: " << request->quantity()
-                             << " price: " << request->price() << std::endl;);
-
-    response->set_order_id(request->order_id());
-    response->set_accepted(true);
-    response->set_message("Order received successfully");
-
-    auto conversion_start = std::chrono::high_resolution_clock::now();
-    Order core_order;
-    convertToCoreOrder(*request, core_order);
-    auto conversion_end = std::chrono::high_resolution_clock::now();
-
-    auto submit_start = std::chrono::high_resolution_clock::now();
-    if (exchange_) {
-        auto result = exchange_->submitOrder(request->symbol(), core_order);
-        if (result != "accepted") {
-            response->set_accepted(false);
-            response->set_message(result);
-        }
-    }
-    auto submit_end = std::chrono::high_resolution_clock::now();
-
-    // Measure and log detailed latencies
-    auto grpc_end = std::chrono::high_resolution_clock::now();
-    auto total_duration = std::chrono::duration_cast<std::chrono::microseconds>(grpc_end - grpc_start);
-    auto conversion_duration = std::chrono::duration_cast<std::chrono::microseconds>(conversion_end - conversion_start);
-    auto submit_duration = std::chrono::duration_cast<std::chrono::microseconds>(submit_end - submit_start);
-
-    long long total_us = total_duration.count();
-    long long conversion_us = conversion_duration.count();
-    long long submit_us = submit_duration.count();
-
-    // Thread-safe metrics collection
-    static std::mutex metrics_mutex;
-    static std::vector<long long> total_latencies;
-    static std::vector<long long> conversion_latencies;
-    static std::vector<long long> submit_latencies;
-    static std::atomic<uint64_t> order_counter{0};
-    static long long min_latency = LLONG_MAX;
-    static long long max_latency = 0;
-    static long long total_sum = 0;
-
-    uint64_t current_count = order_counter.fetch_add(1, std::memory_order_relaxed) + 1;
-
-    {
-        std::lock_guard<std::mutex> lock(metrics_mutex);
-        total_latencies.push_back(total_us);
-        conversion_latencies.push_back(conversion_us);
-        submit_latencies.push_back(submit_us);
-
-        min_latency = std::min(min_latency, total_us);
-        max_latency = std::max(max_latency, total_us);
-        total_sum += total_us;
-    }
-
-    EngineTelemetry::instance().recordOrder(total_us);
-
-    // Log detailed metrics every 1000 orders
-    if (current_count % 1000 == 0) {
-        std::lock_guard<std::mutex> lock(metrics_mutex);
-
-        // Calculate percentiles for total latency
-        std::vector<long long> sorted_total = total_latencies;
-        std::sort(sorted_total.begin(), sorted_total.end());
-        size_t n = sorted_total.size();
-        long long p50_total = sorted_total[n * 50 / 100];
-        long long p90_total = sorted_total[n * 90 / 100];
-        long long p99_total = sorted_total[n * 99 / 100];
-        double avg_total = static_cast<double>(total_sum) / current_count;
-
-        // Calculate percentiles for conversion latency
-        std::vector<long long> sorted_conversion = conversion_latencies;
-        std::sort(sorted_conversion.begin(), sorted_conversion.end());
-        long long p50_conv = sorted_conversion[n * 50 / 100];
-        long long p90_conv = sorted_conversion[n * 90 / 100];
-        long long p99_conv = sorted_conversion[n * 99 / 100];
-
-        // Calculate percentiles for submit latency
-        std::vector<long long> sorted_submit = submit_latencies;
-        std::sort(sorted_submit.begin(), sorted_submit.end());
-        long long p50_submit = sorted_submit[n * 50 / 100];
-        long long p90_submit = sorted_submit[n * 90 / 100];
-        long long p99_submit = sorted_submit[n * 99 / 100];
-
-        get_perf_file() << "=== PERFORMANCE METRICS (Orders: " << current_count << ") ===" << std::endl;
-        get_perf_file() << "Total Latency - Min: " << min_latency << "us, Max: " << max_latency
-                       << "us, Avg: " << (total_sum / current_count)
-                       << "us, P50: " << p50_total << "us, P90: " << p90_total << "us, P99: " << p99_total << "us" << std::endl;
-        get_perf_file() << "Conversion Latency - P50: " << p50_conv << "us, P90: " << p90_conv << "us, P99: " << p99_conv << "us" << std::endl;
-        get_perf_file() << "Submit Latency - P50: " << p50_submit << "us, P90: " << p90_submit << "us, P99: " << p99_submit << "us" << std::endl;
-        get_perf_file() << "==================================================" << std::endl;
-
-        // Reset for next 1000 orders
-        total_latencies.clear();
-        conversion_latencies.clear();
-        submit_latencies.clear();
-        min_latency = LLONG_MAX;
-        max_latency = 0;
-        total_sum = 0;
-    }
-
-    return grpc::Status::OK;
+    (void)request;
+    (void)response;
+    return grpc::Status(grpc::StatusCode::UNAVAILABLE,
+                        "Trading over gRPC has been retired. Use the TLS-encrypted TCP interface instead.");
 }
 
 grpc::Status GRPCServer::OrderStatus(grpc::ServerContext* context,
                                      const stock::OrderStatusRequest* request,
                                      stock::OrderStatusResponse* response) {
     (void)context;
-    if (!exchange_) return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, "Exchange not initialized");
-
-    // We don't know the symbol from request; in real system you'd index by order_id
-    // For now, check all symbols
-    for (const auto& sym : exchange_->getSymbols()) {
-        Order core = exchange_->getOrderStatus(sym, request->order_id());
-        if (!core.order_id.empty()) {
-            convertFromCoreOrderStatus(core, *response);
-            return grpc::Status::OK;
-        }
-    }
-
-    response->set_order_id(request->order_id());
-    response->set_exists(false);
-    response->set_remaining_qty(0);
-    response->set_status("not_found");
-    return grpc::Status::OK;
+    (void)request;
+    (void)response;
+    return grpc::Status(grpc::StatusCode::UNAVAILABLE,
+                        "Order status over gRPC is disabled. Track fills via the TCP interface.");
 }
 
 grpc::Status GRPCServer::StreamMarketData(grpc::ServerContext* context,

@@ -17,8 +17,6 @@ private:
     std::map<int, grpc::ServerWriter<stock::MarketDataUpdate>*> market_data_streams_;
     std::map<int, grpc::ServerWriter<stock::IndexUpdate>*> index_streams_;
     
-    void convertToCoreOrder(const stock::OrderRequest& request, Order& order);
-    void convertFromCoreOrderStatus(const Order& core_order, stock::OrderStatusResponse& response);
     void convertFromCoreMarketData(const MarketDataUpdate& core_update, stock::MarketDataUpdate& proto_update);
     void convertFromCoreIndex(const std::vector<IndexEntry>& core_entries, stock::IndexUpdate& proto_update);
 

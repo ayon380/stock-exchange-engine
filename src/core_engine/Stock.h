@@ -11,6 +11,7 @@
 #include "LockFreeQueue.h"
 #include "MemoryPool.h"
 #include "CPUAffinity.h"
+#include "AdaptiveLoadManager.h"
 
 // Fixed-point arithmetic: prices stored as 1/100th of currency unit
 // $123.45 becomes 12345 (integer)
@@ -58,6 +59,10 @@ struct Order {
     double toDouble() const { return static_cast<double>(price) / 100.0; }
 };
 
+// Reservation callbacks used by higher-level risk/account managers
+using OrderReserveCallback = std::function<bool(const Order&, Price, std::string&)>;
+using OrderReleaseCallback = std::function<void(const Order&, const std::string&)>;
+
 struct Trade {
     std::string buy_order_id;
     std::string sell_order_id;
@@ -65,12 +70,15 @@ struct Trade {
     Price price;
     int64_t quantity;
     int64_t timestamp_ms;
+        std::string buy_user_id;
+        std::string sell_user_id;
     
     Trade() = default;
     Trade(const std::string& buy_id, const std::string& sell_id, const std::string& sym, 
-          Price p, int64_t qty, int64_t ts)
-        : buy_order_id(buy_id), sell_order_id(sell_id), symbol(sym), 
-          price(p), quantity(qty), timestamp_ms(ts) {}
+                    Price p, int64_t qty, int64_t ts, std::string buy_uid, std::string sell_uid)
+                : buy_order_id(buy_id), sell_order_id(sell_id), symbol(sym), 
+                    price(p), quantity(qty), timestamp_ms(ts),
+                    buy_user_id(std::move(buy_uid)), sell_user_id(std::move(sell_uid)) {}
 
     // Helper functions for conversion
     static Price fromDouble(double dollars) { return static_cast<Price>(dollars * 100.0 + 0.5); }
@@ -201,7 +209,9 @@ private:
     // Cached snapshot for high-frequency reads (reduces lock contention)
     mutable std::vector<PriceLevel> cached_bids_;
     mutable std::vector<PriceLevel> cached_asks_;
-    mutable std::atomic<int64_t> last_snapshot_time_ms_;
+    mutable std::atomic<int64_t> last_bids_snapshot_time_ms_;
+    mutable std::atomic<int64_t> last_asks_snapshot_time_ms_;
+    mutable std::mutex snapshot_mutex_;
     static constexpr int64_t SNAPSHOT_CACHE_MS = 100; // Cache for 100ms
     
     // Worker threads
@@ -231,10 +241,20 @@ private:
     std::atomic<uint64_t> orders_processed_;
     std::atomic<uint64_t> trades_executed_;
     std::atomic<uint64_t> messages_sent_;
+    
+    // Per-instance counter for market data updates (fixes data race from static counter)
+    uint64_t market_data_update_counter_;
+
+    // Adaptive load management for dynamic CPU scaling
+    AdaptiveLoadManager matching_load_manager_;
+    AdaptiveLoadManager market_data_load_manager_;
+    AdaptiveLoadManager trade_publisher_load_manager_;
 
     // Optional trade observer for account settlement and analytics
     TradeCallback trade_callback_;
     mutable std::mutex trade_callback_mutex_;
+    OrderReserveCallback reserve_callback_;
+    OrderReleaseCallback release_callback_;
     
     // Core engine methods (no locks, single writer)
     void matchingEngineWorker();
@@ -291,6 +311,14 @@ public:
     uint64_t getTradesExecuted() const { return trades_executed_.load(std::memory_order_relaxed); }
     uint64_t getMessagesSent() const { return messages_sent_.load(std::memory_order_relaxed); }
     
+    // Load level monitoring
+    const char* getMatchingLoadLevel() const { return matching_load_manager_.getLoadLevelName(); }
+    const char* getMarketDataLoadLevel() const { return market_data_load_manager_.getLoadLevelName(); }
+    const char* getTradePublisherLoadLevel() const { return trade_publisher_load_manager_.getLoadLevelName(); }
+    int getMatchingWorkPercentage() const { return matching_load_manager_.getWorkPercentage(); }
+    int getMarketDataWorkPercentage() const { return market_data_load_manager_.getWorkPercentage(); }
+    int getTradePublisherWorkPercentage() const { return trade_publisher_load_manager_.getWorkPercentage(); }
+    
     // For database persistence
     std::string getSymbol() const { return symbol_; }
     void setLastPrice(double price) { last_price_.store(static_cast<Price>(price * 100.0), std::memory_order_relaxed); }
@@ -300,4 +328,5 @@ public:
     void setDayLow(double low) { day_low_.store(static_cast<Price>(low * 100.0), std::memory_order_relaxed); }
 
     void setTradeCallback(TradeCallback callback);
+    void setReservationHandlers(OrderReserveCallback reserve_cb, OrderReleaseCallback release_cb);
 };

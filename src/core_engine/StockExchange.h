@@ -15,6 +15,8 @@
 using Price = int64_t;
 using CashAmount = int64_t;
 
+class AuthenticationManager;
+
 // Keep the old IndexEntry for backward compatibility
 struct IndexEntry {
     std::string symbol;
@@ -130,6 +132,12 @@ private:
     std::vector<IndexUpdateCallback> index_subscribers_;
     std::vector<MarketIndexCallback> market_index_subscribers_;
     std::vector<AllStocksCallback> all_stocks_subscribers_;
+    mutable std::mutex trade_subscribers_mutex_;
+    std::vector<TradeCallback> trade_subscribers_;
+    AuthenticationManager* auth_manager_{nullptr};
+    OrderReserveCallback reserve_callback_;
+    OrderReleaseCallback release_callback_;
+    bool trade_observer_registered_{false};
     
     // Index calculation
     mutable std::mutex index_mutex_;
@@ -148,6 +156,7 @@ private:
     void broadcastIndex();
     void broadcastMarketIndex();
     void broadcastAllStocks();
+    void dispatchTrade(const Trade& trade);
     
 public:
     StockExchange(const std::string& db_connection_string = "");
@@ -176,6 +185,8 @@ public:
     void subscribeToIndex(IndexUpdateCallback callback);
     void subscribeToMarketIndex(MarketIndexCallback callback);
     void subscribeToAllStocks(AllStocksCallback callback);
+    void registerTradeObserver(TradeCallback callback);
+    void setAuthenticationManager(AuthenticationManager* manager);
     void unsubscribeFromMarketData(const std::string& symbol);
     void unsubscribeFromIndex();
     void unsubscribeFromMarketIndex();
