@@ -194,12 +194,34 @@ bool AuthenticationManager::checkBuyingPower(const UserId& user_id, CashAmount r
 void AuthenticationManager::applyTrade(const Trade& trade) {
     const CashAmount trade_value = trade.price * trade.quantity;
 
+    // CRITICAL FIX: Process buyer and seller in a consistent order to prevent deadlock
+    // Always lock in the same order: buyer first, then seller (or use std::scoped_lock)
     if (!trade.buy_user_id.empty()) {
         if (auto buyer = getAccount(trade.buy_user_id)) {
-            consumeReservationForTrade(trade.buy_order_id, trade.buy_user_id, trade.price, trade.quantity, 0);
-            std::scoped_lock<std::mutex> lock(buyer->account_mutex);
+            // CRITICAL FIX: Acquire locks in consistent order to prevent deadlock
+            // Lock order: account_mutex FIRST, then reservations_mutex
+            std::scoped_lock<std::mutex, std::mutex> lock(buyer->account_mutex, reservations_mutex_);
+            
+            // Consume reservation inline to avoid nested locking
+            auto it = order_reservations_.find(trade.buy_order_id);
+            if (it != order_reservations_.end()) {
+                Reservation& reservation = it->second;
+                if (reservation.reserved_cash > 0) {
+                    CashAmount consumed = static_cast<CashAmount>(trade.price) * trade.quantity;
+                    CashAmount reduction = std::min<CashAmount>(reservation.reserved_cash, consumed);
+                    CashAmount current_reserved = buyer->reserved_cash.load();
+                    buyer->reserved_cash.store(current_reserved >= reduction ? current_reserved - reduction : 0, std::memory_order_relaxed);
+                    reservation.reserved_cash -= reduction;
+                    reservation.reserved_quantity = reservation.reserved_quantity > trade.quantity ? reservation.reserved_quantity - trade.quantity : 0;
+                }
+                if (reservation.reserved_cash == 0 && reservation.reserved_quantity == 0) {
+                    order_reservations_.erase(it);
+                }
+            }
+            
+            // Apply trade to account
             if (auto* position = locatePosition(buyer, trade.symbol)) {
-                position->fetch_add(static_cast<long>(trade.quantity), std::memory_order_relaxed);
+                position->fetch_add(static_cast<int64_t>(trade.quantity), std::memory_order_relaxed);
             }
             buyer->cash.fetch_sub(trade_value, std::memory_order_relaxed);
             buyer->buying_power.store(buyer->cash.load() - buyer->reserved_cash.load(), std::memory_order_relaxed);
@@ -210,10 +232,31 @@ void AuthenticationManager::applyTrade(const Trade& trade) {
 
     if (!trade.sell_user_id.empty()) {
         if (auto seller = getAccount(trade.sell_user_id)) {
-            consumeReservationForTrade(trade.sell_order_id, trade.sell_user_id, trade.price, trade.quantity, 1);
-            std::scoped_lock<std::mutex> lock(seller->account_mutex);
+            // CRITICAL FIX: Acquire locks in consistent order to prevent deadlock
+            // Lock order: account_mutex FIRST, then reservations_mutex
+            std::scoped_lock<std::mutex, std::mutex> lock(seller->account_mutex, reservations_mutex_);
+            
+            // Consume reservation inline to avoid nested locking
+            auto it = order_reservations_.find(trade.sell_order_id);
+            if (it != order_reservations_.end()) {
+                Reservation& reservation = it->second;
+                if (reservation.reserved_quantity > 0) {
+                    auto* reserved_position = locateReservedPosition(seller, reservation.symbol);
+                    if (reserved_position) {
+                        int64_t reduction = std::min<int64_t>(reservation.reserved_quantity, trade.quantity);
+                        int64_t current_reserved = reserved_position->load();
+                        reserved_position->store(current_reserved >= reduction ? current_reserved - reduction : 0, std::memory_order_relaxed);
+                        reservation.reserved_quantity -= reduction;
+                    }
+                }
+                if (reservation.reserved_cash == 0 && reservation.reserved_quantity == 0) {
+                    order_reservations_.erase(it);
+                }
+            }
+            
+            // Apply trade to account
             if (auto* position = locatePosition(seller, trade.symbol)) {
-                position->fetch_sub(static_cast<long>(trade.quantity), std::memory_order_relaxed);
+                position->fetch_sub(static_cast<int64_t>(trade.quantity), std::memory_order_relaxed);
             }
             seller->cash.fetch_add(trade_value, std::memory_order_relaxed);
             seller->buying_power.store(seller->cash.load() - seller->reserved_cash.load(), std::memory_order_relaxed);
@@ -276,13 +319,13 @@ bool AuthenticationManager::reserveForOrder(const Order& order, Price effective_
         return false;
     }
 
-    long available_shares = position->load() - reserved_position->load();
+    int64_t available_shares = position->load() - reserved_position->load();
     if (available_shares < order.quantity) {
         reason = "rejected: insufficient shares";
         return false;
     }
 
-    reserved_position->fetch_add(static_cast<long>(order.quantity), std::memory_order_relaxed);
+    reserved_position->fetch_add(static_cast<int64_t>(order.quantity), std::memory_order_relaxed);
     Reservation reservation;
     reservation.reserved_quantity = order.quantity;
     reservation.symbol = order.symbol;
@@ -313,8 +356,8 @@ void AuthenticationManager::releaseForOrder(const Order& order, const std::strin
         account->day_trading_buying_power.store(account->buying_power.load(), std::memory_order_relaxed);
     } else if (reservation.side == 1 && reservation.reserved_quantity > 0) {
         if (auto* reserved_position = locateReservedPosition(account, reservation.symbol)) {
-            long current_reserved = reserved_position->load();
-            long release_qty = static_cast<long>(std::min<int64_t>(reservation.reserved_quantity, current_reserved));
+            int64_t current_reserved = reserved_position->load();
+            int64_t release_qty = std::min<int64_t>(reservation.reserved_quantity, current_reserved);
             reserved_position->store(current_reserved - release_qty, std::memory_order_relaxed);
         }
     }
@@ -322,7 +365,7 @@ void AuthenticationManager::releaseForOrder(const Order& order, const std::strin
     order_reservations_.erase(it);
 }
 
-std::atomic<long>* AuthenticationManager::locatePosition(Account* account, const std::string& symbol) {
+std::atomic<int64_t>* AuthenticationManager::locatePosition(Account* account, const std::string& symbol) {
     if (!account) {
         return nullptr;
     }
@@ -334,7 +377,7 @@ std::atomic<long>* AuthenticationManager::locatePosition(Account* account, const
     return nullptr;
 }
 
-std::atomic<long>* AuthenticationManager::locateReservedPosition(Account* account, const std::string& symbol) {
+std::atomic<int64_t>* AuthenticationManager::locateReservedPosition(Account* account, const std::string& symbol) {
     if (!account) {
         return nullptr;
     }
@@ -379,8 +422,8 @@ void AuthenticationManager::consumeReservationForTrade(const std::string& order_
     } else if (side == 1 && reservation.reserved_quantity > 0) {
         auto* reserved_position = locateReservedPosition(account, reservation.symbol);
         if (reserved_position) {
-            long reduction = static_cast<long>(std::min<int64_t>(reservation.reserved_quantity, quantity));
-            long current_reserved = reserved_position->load();
+            int64_t reduction = std::min<int64_t>(reservation.reserved_quantity, quantity);
+            int64_t current_reserved = reserved_position->load();
             reserved_position->store(current_reserved >= reduction ? current_reserved - reduction : 0, std::memory_order_relaxed);
             reservation.reserved_quantity -= reduction;
         }
@@ -443,6 +486,25 @@ void AuthenticationManager::syncAllAccountsToDatabase() {
         }
         std::cout << std::endl;
     }
+}
+
+void AuthenticationManager::clearCachedAccounts() {
+    {
+        std::unique_lock<std::shared_mutex> lock(accounts_mutex_);
+        accounts_.clear();
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(reservations_mutex_);
+        order_reservations_.clear();
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(sessions_mutex_);
+        sessions_.clear();
+    }
+
+    std::cout << "Authentication cache cleared; accounts will be reloaded from database on next use" << std::endl;
 }
 
 bool AuthenticationManager::validateJWTWithRedis(const std::string& jwt_token, UserId& user_id) {

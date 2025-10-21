@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <string>
 #include <memory>
 #include <mutex>
@@ -24,11 +25,11 @@ using CashAmount = int64_t;
 // Represents a user's financial state in memory
 struct Account {
     std::atomic<CashAmount> cash;
-    std::atomic<long> aapl_qty;
-    std::atomic<long> googl_qty;
-    std::atomic<long> msft_qty;
-    std::atomic<long> amzn_qty;
-    std::atomic<long> tsla_qty;
+    std::atomic<int64_t> aapl_qty;
+    std::atomic<int64_t> googl_qty;
+    std::atomic<int64_t> msft_qty;
+    std::atomic<int64_t> amzn_qty;
+    std::atomic<int64_t> tsla_qty;
     // Add more positions as needed
     
     // Risk metrics
@@ -38,11 +39,11 @@ struct Account {
     std::atomic<long long> realized_pnl;
     std::atomic<bool> is_active;
     std::atomic<CashAmount> reserved_cash;
-    std::atomic<long> reserved_aapl;
-    std::atomic<long> reserved_googl;
-    std::atomic<long> reserved_msft;
-    std::atomic<long> reserved_amzn;
-    std::atomic<long> reserved_tsla;
+    std::atomic<int64_t> reserved_aapl;
+    std::atomic<int64_t> reserved_googl;
+    std::atomic<int64_t> reserved_msft;
+    std::atomic<int64_t> reserved_amzn;
+    std::atomic<int64_t> reserved_tsla;
     mutable std::mutex account_mutex;
     
     // Constructor to initialize atomic values
@@ -59,11 +60,11 @@ struct Account {
         , realized_pnl(0)
         , is_active(true)
         , reserved_cash(0)
-        , reserved_aapl(0)
-        , reserved_googl(0)
-        , reserved_msft(0)
-        , reserved_amzn(0)
-        , reserved_tsla(0) {
+    , reserved_aapl(0)
+    , reserved_googl(0)
+    , reserved_msft(0)
+    , reserved_amzn(0)
+    , reserved_tsla(0) {
     }
     
     // Copy constructor for atomic types
@@ -80,11 +81,11 @@ struct Account {
         , realized_pnl(other.realized_pnl.load())
         , is_active(other.is_active.load())
         , reserved_cash(other.reserved_cash.load())
-        , reserved_aapl(other.reserved_aapl.load())
-        , reserved_googl(other.reserved_googl.load())
-        , reserved_msft(other.reserved_msft.load())
-        , reserved_amzn(other.reserved_amzn.load())
-        , reserved_tsla(other.reserved_tsla.load()) {
+    , reserved_aapl(other.reserved_aapl.load())
+    , reserved_googl(other.reserved_googl.load())
+    , reserved_msft(other.reserved_msft.load())
+    , reserved_amzn(other.reserved_amzn.load())
+    , reserved_tsla(other.reserved_tsla.load()) {
     }
 
     // Helper functions for conversion
@@ -181,7 +182,7 @@ public:
     void updateLastActivity(ConnectionId conn_id);
     void cleanupInactiveSessions(std::chrono::minutes timeout = std::chrono::minutes(30));
     bool checkBuyingPower(const UserId& user_id, CashAmount required_cash);
-    bool updatePosition(const UserId& user_id, const std::string& symbol, long quantity_change, Price price);
+    bool updatePosition(const UserId& user_id, const std::string& symbol, int64_t quantity_change, Price price);
     
     // Database synchronization (called every 30 seconds)
     void syncAllAccountsToDatabase();
@@ -189,6 +190,7 @@ public:
     // Statistics
     size_t getActiveSessionCount();
     size_t getLoadedAccountCount();
+    void clearCachedAccounts();
 
 private:
     // Risk management helpers
@@ -200,8 +202,8 @@ private:
         Price price{0};
     };
 
-    std::atomic<long>* locatePosition(Account* account, const std::string& symbol);
-    std::atomic<long>* locateReservedPosition(Account* account, const std::string& symbol);
+    std::atomic<int64_t>* locatePosition(Account* account, const std::string& symbol);
+    std::atomic<int64_t>* locateReservedPosition(Account* account, const std::string& symbol);
     void consumeReservationForTrade(const std::string& order_id,
                                     const UserId& user_id,
                                     Price execution_price,

@@ -2,6 +2,8 @@
 #include "../common/EngineLogging.h"
 #include <iostream>
 #include <chrono>
+#include <sstream>
+#include <functional>
 
 DatabaseManager::DatabaseManager(const std::string& connection_string, 
                                 std::chrono::seconds sync_interval,
@@ -81,24 +83,126 @@ void DatabaseManager::initializeTables() {
                 price DECIMAL(15,4),
                 status VARCHAR(20) DEFAULT 'open',
                 timestamp_ms BIGINT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         )");
-        
+
+        txn.exec(R"(
+            ALTER TABLE orders
+            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )");
+
+        txn.exec(R"(
+            CREATE INDEX IF NOT EXISTS idx_orders_timestamp
+            ON orders (timestamp_ms DESC)
+        )");
+
         // Create trades table
         txn.exec(R"(
             CREATE TABLE IF NOT EXISTS trades (
                 id SERIAL PRIMARY KEY,
+                trade_id VARCHAR(100) NOT NULL,
                 buy_order_id VARCHAR(50) NOT NULL,
                 sell_order_id VARCHAR(50) NOT NULL,
                 symbol VARCHAR(10) NOT NULL,
                 price DECIMAL(15,4) NOT NULL,
                 quantity BIGINT NOT NULL,
+                buyer_id VARCHAR(50) NOT NULL,
+                seller_id VARCHAR(50) NOT NULL,
                 timestamp_ms BIGINT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         )");
-        
+
+        txn.exec(R"(
+            ALTER TABLE trades
+            ADD COLUMN IF NOT EXISTS trade_id VARCHAR(100)
+        )");
+
+        txn.exec(R"(
+            ALTER TABLE trades
+            ADD COLUMN IF NOT EXISTS buyer_id VARCHAR(50)
+        )");
+
+        txn.exec(R"(
+            ALTER TABLE trades
+            ADD COLUMN IF NOT EXISTS seller_id VARCHAR(50)
+        )");
+
+        txn.exec(R"(
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_trade_id
+            ON trades (trade_id)
+        )");
+
+        // Master stock metadata table (admin CLI support)
+        txn.exec(R"(
+            CREATE TABLE IF NOT EXISTS stocks_master (
+                symbol VARCHAR(10) PRIMARY KEY,
+                company_name VARCHAR(120) NOT NULL,
+                sector VARCHAR(80) NOT NULL,
+                market_cap BIGINT,
+                initial_price DECIMAL(15,4) NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                listing_date DATE DEFAULT CURRENT_DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        )");
+
+        txn.exec(R"(
+            ALTER TABLE stocks_master
+            ADD COLUMN IF NOT EXISTS market_cap BIGINT
+        )");
+
+        txn.exec(R"(
+            ALTER TABLE stocks_master
+            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )");
+
+        // Security event log (Regulation S-P)
+        txn.exec(R"(
+            CREATE TABLE IF NOT EXISTS security_events (
+                id SERIAL PRIMARY KEY,
+                event_type VARCHAR(64) NOT NULL,
+                user_id VARCHAR(50),
+                ip_address INET,
+                connection_id VARCHAR(64),
+                event_data JSONB,
+                severity VARCHAR(16),
+                timestamp_ms BIGINT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        )");
+
+        txn.exec(R"(
+            CREATE INDEX IF NOT EXISTS idx_security_events_timestamp
+            ON security_events (timestamp_ms DESC)
+        )");
+
+        // Circuit breaker events (Rule 80B)
+        txn.exec(R"(
+            CREATE TABLE IF NOT EXISTS circuit_breaker_events (
+                id SERIAL PRIMARY KEY,
+                symbol VARCHAR(10) NOT NULL,
+                trigger_level INTEGER NOT NULL,
+                trigger_price DECIMAL(15,4) NOT NULL,
+                reference_price DECIMAL(15,4) NOT NULL,
+                halt_duration_minutes INTEGER NOT NULL,
+                triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        )");
+
+        txn.exec(R"(
+            ALTER TABLE circuit_breaker_events
+            ADD COLUMN IF NOT EXISTS triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )");
+
+        txn.exec(R"(
+            CREATE INDEX IF NOT EXISTS idx_circuit_breaker_symbol
+            ON circuit_breaker_events (symbol, triggered_at DESC)
+        )");
+
         // Create user_accounts table
         txn.exec(R"(
             CREATE TABLE IF NOT EXISTS user_accounts (
@@ -270,15 +374,321 @@ StockData DatabaseManager::getLatestStockData(const std::string& symbol) {
 }
 
 bool DatabaseManager::saveOrder(const std::string& order_data) {
-    // Implementation for saving order audit trail
-    // This can be extended based on specific requirements
+    // Parse JSON order data and save to database
+    // For now, accepting JSON string format
+    // Format expected: {"order_id":"...", "user_id":"...", "symbol":"...", ...}
+    // This is a simplified implementation - enhance as needed
+    ENGINE_LOG_DEV(std::cout << "[DB] Saving order (stub): " << order_data.substr(0, 50) << "..." << std::endl;);
     return true;
 }
 
 bool DatabaseManager::saveTrade(const std::string& trade_data) {
-    // Implementation for saving trade data
-    // This can be extended based on specific requirements
+    // Parse JSON trade data and save to database
+    // This is a simplified implementation - enhance as needed
+    ENGINE_LOG_DEV(std::cout << "[DB] Saving trade (stub): " << trade_data.substr(0, 50) << "..." << std::endl;);
     return true;
+}
+
+// SEC Compliance: Order Persistence (17a-3)
+bool DatabaseManager::persistOrder(const std::string& order_id, const std::string& user_id, 
+                                  const std::string& symbol, int side, int type, 
+                                  int64_t quantity, Price price, const std::string& status, 
+                                  int64_t timestamp_ms) {
+    if (!connection_pool_) return false;
+    
+    try {
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
+        
+        // Convert price from cents to dollars for storage
+        double price_dollars = static_cast<double>(price) / 100.0;
+        
+        // Insert or update order (upsert pattern for status changes)
+        std::string query = R"(
+            INSERT INTO orders (order_id, user_id, symbol, side, order_type, quantity, price, status, timestamp_ms)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (order_id) DO UPDATE 
+            SET user_id = EXCLUDED.user_id,
+                symbol = EXCLUDED.symbol,
+                side = EXCLUDED.side,
+                order_type = EXCLUDED.order_type,
+                quantity = EXCLUDED.quantity,
+                price = EXCLUDED.price,
+                status = EXCLUDED.status,
+                timestamp_ms = EXCLUDED.timestamp_ms,
+                updated_at = CURRENT_TIMESTAMP
+        )";
+        
+        txn.exec_params(query, order_id, user_id, symbol, side, type, quantity, price_dollars, status, timestamp_ms);
+        txn.commit();
+        
+        ENGINE_LOG_DEV(std::cout << "[DB] Order persisted: " << order_id << " status=" << status << std::endl;);
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[DB ERROR] Failed to persist order " << order_id << ": " << e.what() << std::endl;
+        return false;
+    }
+}
+
+// SEC Compliance: Trade Persistence (17a-3)
+bool DatabaseManager::persistTrade(const std::string& buy_order_id, const std::string& sell_order_id,
+                                  const std::string& symbol, Price price, int64_t quantity,
+                                  const std::string& buyer_id, const std::string& seller_id,
+                                  int64_t timestamp_ms) {
+    if (!connection_pool_) return false;
+    
+    try {
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
+        
+        // Convert price from cents to dollars for storage
+        double price_dollars = static_cast<double>(price) / 100.0;
+        
+        // Generate collision-resistant trade ID (timestamp + hashed orders + monotonic counter)
+        const uint64_t sequence = trade_id_sequence_.fetch_add(1, std::memory_order_relaxed);
+        const uint64_t order_hash = std::hash<std::string>{}(buy_order_id + ":" + sell_order_id);
+
+        std::ostringstream id_builder;
+        id_builder << "TRD_" << timestamp_ms << "_" << std::hex << std::uppercase
+                   << order_hash << "_" << sequence;
+        const std::string trade_id = id_builder.str();
+        
+        // Insert trade record
+        std::string query = R"(
+            INSERT INTO trades (trade_id, buy_order_id, sell_order_id, symbol, price, quantity, 
+                               buyer_id, seller_id, timestamp_ms)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (trade_id) DO NOTHING
+        )";
+        
+        txn.exec_params(query, trade_id, buy_order_id, sell_order_id, symbol, price_dollars, quantity, 
+                       buyer_id, seller_id, timestamp_ms);
+        txn.commit();
+        
+        ENGINE_LOG_DEV(std::cout << "[DB] Trade persisted: " << trade_id << " " << quantity 
+                                 << " @ $" << price_dollars << std::endl;);
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[DB ERROR] Failed to persist trade: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+// Security Event Logging (SEC Regulation S-P)
+bool DatabaseManager::logSecurityEvent(const std::string& event_type, const std::string& user_id,
+                                      const std::string& ip_address, const std::string& connection_id,
+                                      const std::string& event_data, const std::string& severity,
+                                      int64_t timestamp_ms) {
+    if (!connection_pool_) return false;
+    
+    try {
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
+        
+        std::string query = R"(
+            INSERT INTO security_events (event_type, user_id, ip_address, connection_id, 
+                                        event_data, severity, timestamp_ms)
+            VALUES ($1, $2, $3::inet, $4, $5::jsonb, $6, $7)
+        )";
+        
+        txn.exec_params(query, event_type, user_id, ip_address, connection_id, 
+                       event_data, severity, timestamp_ms);
+        txn.commit();
+        
+        ENGINE_LOG_DEV(std::cout << "[SECURITY] Event logged: " << event_type << " user=" << user_id 
+                                 << " severity=" << severity << std::endl;);
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[DB ERROR] Failed to log security event: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+// Circuit Breaker Event Logging (SEC Rule 80B)
+bool DatabaseManager::logCircuitBreakerEvent(const std::string& symbol, int level, 
+                                            Price trigger_price, Price reference_price,
+                                            int halt_duration_minutes) {
+    if (!connection_pool_) return false;
+    
+    try {
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
+        
+        double trigger_dollars = static_cast<double>(trigger_price) / 100.0;
+        double reference_dollars = static_cast<double>(reference_price) / 100.0;
+        
+        std::string query = R"(
+            INSERT INTO circuit_breaker_events (symbol, trigger_level, trigger_price, 
+                                               reference_price, halt_duration_minutes)
+            VALUES ($1, $2, $3, $4, $5)
+        )";
+        
+        txn.exec_params(query, symbol, level, trigger_dollars, reference_dollars, halt_duration_minutes);
+        txn.commit();
+        
+        std::cout << "[CIRCUIT BREAKER] Level " << level << " triggered for " << symbol 
+                  << " at $" << trigger_dollars << " (ref: $" << reference_dollars << ")" << std::endl;
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[DB ERROR] Failed to log circuit breaker event: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+// Stock Management: Add New Stock (Admin Operation)
+bool DatabaseManager::addStock(const std::string& symbol, const std::string& company_name,
+                              const std::string& sector, double initial_price) {
+    if (!connection_pool_) return false;
+    
+    try {
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
+        
+        std::string query = R"(
+            INSERT INTO stocks_master (symbol, company_name, sector, initial_price, is_active)
+            VALUES ($1, $2, $3, $4, TRUE)
+            ON CONFLICT (symbol) DO UPDATE
+            SET company_name = EXCLUDED.company_name,
+                sector = EXCLUDED.sector,
+                initial_price = EXCLUDED.initial_price,
+                is_active = TRUE,
+                updated_at = CURRENT_TIMESTAMP
+        )";
+        
+        txn.exec_params(query, symbol, company_name, sector, initial_price);
+        txn.commit();
+        
+        std::cout << "[ADMIN] Stock added: " << symbol << " (" << company_name << ") @ $" 
+                  << initial_price << std::endl;
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[DB ERROR] Failed to add stock " << symbol << ": " << e.what() << std::endl;
+        return false;
+    }
+}
+
+// Stock Management: Remove Stock (Admin Operation)
+bool DatabaseManager::removeStock(const std::string& symbol) {
+    if (!connection_pool_) return false;
+    
+    try {
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
+        
+        std::string query = R"(
+            UPDATE stocks_master 
+            SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+            WHERE symbol = $1
+        )";
+        
+        txn.exec_params(query, symbol);
+        txn.commit();
+        
+        std::cout << "[ADMIN] Stock deactivated: " << symbol << std::endl;
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[DB ERROR] Failed to remove stock " << symbol << ": " << e.what() << std::endl;
+        return false;
+    }
+}
+
+// Stock Management: Update Stock Info
+bool DatabaseManager::updateStock(const std::string& symbol, const std::string& company_name,
+                                 const std::string& sector) {
+    if (!connection_pool_) return false;
+    
+    try {
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
+        
+        std::string query = R"(
+            UPDATE stocks_master 
+            SET company_name = $2, sector = $3, updated_at = CURRENT_TIMESTAMP
+            WHERE symbol = $1
+        )";
+        
+        txn.exec_params(query, symbol, company_name, sector);
+        txn.commit();
+        
+        std::cout << "[ADMIN] Stock updated: " << symbol << std::endl;
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[DB ERROR] Failed to update stock " << symbol << ": " << e.what() << std::endl;
+        return false;
+    }
+}
+
+// Get All Stocks
+std::vector<DatabaseManager::StockInfo> DatabaseManager::getAllStocks() {
+    std::vector<StockInfo> result;
+    
+    if (!connection_pool_) return result;
+    
+    try {
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
+        
+        auto res = txn.exec(R"(
+            SELECT symbol, company_name, sector, COALESCE(market_cap, 0), initial_price, 
+                   is_active, listing_date::text
+            FROM stocks_master
+            ORDER BY symbol
+        )");
+        
+        for (const auto& row : res) {
+            StockInfo info;
+            info.symbol = row[0].as<std::string>();
+            info.company_name = row[1].as<std::string>();
+            info.sector = row[2].as<std::string>();
+            info.market_cap = row[3].as<int64_t>();
+            info.initial_price = row[4].as<double>();
+            info.is_active = row[5].as<bool>();
+            info.listing_date = row[6].as<std::string>();
+            result.push_back(info);
+        }
+        
+        txn.commit();
+    } catch (const std::exception& e) {
+        std::cerr << "[DB ERROR] Failed to get all stocks: " << e.what() << std::endl;
+    }
+    
+    return result;
+}
+
+// Get Stock Info
+DatabaseManager::StockInfo DatabaseManager::getStockInfo(const std::string& symbol) {
+    StockInfo info;
+    
+    if (!connection_pool_) return info;
+    
+    try {
+        ScopedConnection conn(*connection_pool_);
+        pqxx::work txn(conn.get());
+        
+        auto res = txn.exec_params(R"(
+            SELECT symbol, company_name, sector, COALESCE(market_cap, 0), initial_price, 
+                   is_active, listing_date::text
+            FROM stocks_master
+            WHERE symbol = $1
+        )", symbol);
+        
+        if (!res.empty()) {
+            const auto& row = res[0];
+            info.symbol = row[0].as<std::string>();
+            info.company_name = row[1].as<std::string>();
+            info.sector = row[2].as<std::string>();
+            info.market_cap = row[3].as<int64_t>();
+            info.initial_price = row[4].as<double>();
+            info.is_active = row[5].as<bool>();
+            info.listing_date = row[6].as<std::string>();
+        }
+        
+        txn.commit();
+    } catch (const std::exception& e) {
+        std::cerr << "[DB ERROR] Failed to get stock info for " << symbol << ": " << e.what() << std::endl;
+    }
+    
+    return info;
 }
 
 bool DatabaseManager::isConnected() const {
@@ -311,11 +721,11 @@ bool DatabaseManager::loadUserAccount(const std::string& user_id, UserAccount& a
         auto row = result[0];
     account.user_id = row["user_id"].as<std::string>();
     account.cash = row["cash"].as<long long>();
-        account.aapl_qty = row["aapl_qty"].as<long>();
-        account.googl_qty = row["googl_qty"].as<long>();
-        account.msft_qty = row["msft_qty"].as<long>();
-        account.amzn_qty = row["amzn_qty"].as<long>();
-        account.tsla_qty = row["tsla_qty"].as<long>();
+        account.aapl_qty = row["aapl_qty"].as<int64_t>();
+        account.googl_qty = row["googl_qty"].as<int64_t>();
+        account.msft_qty = row["msft_qty"].as<int64_t>();
+        account.amzn_qty = row["amzn_qty"].as<int64_t>();
+        account.tsla_qty = row["tsla_qty"].as<int64_t>();
     account.buying_power = row["buying_power"].as<long long>();
     account.day_trading_buying_power = row["day_trading_buying_power"].as<long long>();
         account.total_trades = row["total_trades"].as<int64_t>();

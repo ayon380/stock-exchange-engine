@@ -46,10 +46,11 @@ bool StockExchange::initialize() {
     // Initialize database connection
     if (db_manager_) {
         if (!db_manager_->connect()) {
-            std::cerr << "Warning: Failed to connect to database, continuing with in-memory only" << std::endl;
-        } else {
-            loadFromDatabase();
+            std::cerr << "Error: Failed to connect to database; aborting exchange startup" << std::endl;
+            return false;
         }
+
+        loadFromDatabase();
     }
     
     // Initialize stocks with different starting prices and CPU affinity
@@ -81,6 +82,24 @@ bool StockExchange::initialize() {
             stocks_[symbol]->setTradeCallback([this](const Trade& trade) {
                 dispatchTrade(trade);
             });
+            
+            // SEC Compliance: Set order status callback for persistence
+            stocks_[symbol]->setOrderStatusCallback([this](const Order& order) {
+                if (db_manager_ && db_manager_->isConnected()) {
+                    db_manager_->persistOrder(
+                        order.order_id,
+                        order.user_id,
+                        order.symbol,
+                        order.side,
+                        order.type,
+                        order.quantity,
+                        order.price,
+                        order.status,
+                        order.timestamp_ms
+                    );
+                }
+            });
+            
         if (reserve_callback_) {
             stocks_[symbol]->setReservationHandlers(reserve_callback_, release_callback_);
         }
@@ -526,6 +545,21 @@ void StockExchange::broadcastAllStocks() {
 }
 
 void StockExchange::dispatchTrade(const Trade& trade) {
+    // SEC Compliance: Persist trade to database (17a-3 requirement)
+    if (db_manager_ && db_manager_->isConnected()) {
+        db_manager_->persistTrade(
+            trade.buy_order_id,
+            trade.sell_order_id,
+            trade.symbol,
+            trade.price,
+            trade.quantity,
+            trade.buy_user_id,
+            trade.sell_user_id,
+            trade.timestamp_ms
+        );
+    }
+    
+    // Dispatch to subscribers
     std::vector<TradeCallback> callbacks_snapshot;
     {
         std::lock_guard<std::mutex> lock(trade_subscribers_mutex_);

@@ -10,6 +10,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <iostream>
+#include <cstdint>
 
 // Fixed-point arithmetic types
 using Price = int64_t;
@@ -127,6 +128,7 @@ private:
     std::string connection_string_;
     std::chrono::seconds sync_interval_;
     size_t pool_size_;
+    std::atomic<uint64_t> trade_id_sequence_{0};
     
     void initializeTables();
     void syncWorker();
@@ -153,15 +155,57 @@ public:
     bool saveOrder(const std::string& order_data);
     bool saveTrade(const std::string& trade_data);
     
+    // SEC Compliance: Order and Trade Persistence
+    bool persistOrder(const std::string& order_id, const std::string& user_id, 
+                     const std::string& symbol, int side, int type, 
+                     int64_t quantity, Price price, const std::string& status, 
+                     int64_t timestamp_ms);
+    
+    bool persistTrade(const std::string& buy_order_id, const std::string& sell_order_id,
+                     const std::string& symbol, Price price, int64_t quantity,
+                     const std::string& buyer_id, const std::string& seller_id,
+                     int64_t timestamp_ms);
+    
+    // Security Event Logging (SEC Regulation S-P)
+    bool logSecurityEvent(const std::string& event_type, const std::string& user_id,
+                         const std::string& ip_address, const std::string& connection_id,
+                         const std::string& event_data, const std::string& severity,
+                         int64_t timestamp_ms);
+    
+    // Circuit Breaker Events (SEC Rule 80B)
+    bool logCircuitBreakerEvent(const std::string& symbol, int level, 
+                               Price trigger_price, Price reference_price,
+                               int halt_duration_minutes);
+    
+    // Stock Management (Admin Operations)
+    bool addStock(const std::string& symbol, const std::string& company_name,
+                 const std::string& sector, double initial_price);
+    bool removeStock(const std::string& symbol);
+    bool updateStock(const std::string& symbol, const std::string& company_name,
+                    const std::string& sector);
+    
+    struct StockInfo {
+        std::string symbol;
+        std::string company_name;
+        std::string sector;
+        int64_t market_cap;
+        double initial_price;
+        bool is_active;
+        std::string listing_date;
+    };
+    
+    std::vector<StockInfo> getAllStocks();
+    StockInfo getStockInfo(const std::string& symbol);
+    
     // User account operations
     struct UserAccount {
         std::string user_id;
-        CashAmount cash;
-        long aapl_qty;
-        long googl_qty;
-        long msft_qty;
-        long amzn_qty;
-        long tsla_qty;
+    CashAmount cash;
+    int64_t aapl_qty;
+    int64_t googl_qty;
+    int64_t msft_qty;
+    int64_t amzn_qty;
+    int64_t tsla_qty;
         CashAmount buying_power;
         CashAmount day_trading_buying_power;
         int64_t total_trades;
@@ -173,8 +217,8 @@ public:
         double cashToDouble() const { return static_cast<double>(cash) / 100.0; }
         double buyingPowerToDouble() const { return static_cast<double>(buying_power) / 100.0; }
         
-        UserAccount() : user_id(""), cash(0), aapl_qty(0), googl_qty(0), msft_qty(0), 
-                       amzn_qty(0), tsla_qty(0), buying_power(0), day_trading_buying_power(0),
+    UserAccount() : user_id(""), cash(0), aapl_qty(0), googl_qty(0), msft_qty(0), 
+               amzn_qty(0), tsla_qty(0), buying_power(0), day_trading_buying_power(0),
                        total_trades(0), realized_pnl(0), is_active(true) {}
     };
     

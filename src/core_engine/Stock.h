@@ -88,6 +88,9 @@ struct Trade {
 // Callback invoked when a trade is executed. The parameter carries trade metadata in fixed-point cents.
 using TradeCallback = std::function<void(const Trade&)>;
 
+// Callback invoked when an order status changes (for SEC compliance persistence)
+using OrderStatusCallback = std::function<void(const Order&)>;
+
 // Messages for lock-free communication
 struct OrderMessage {
     enum Type { NEW_ORDER, CANCEL_ORDER, MARKET_DATA_REQUEST };
@@ -253,6 +256,11 @@ private:
     // Optional trade observer for account settlement and analytics
     TradeCallback trade_callback_;
     mutable std::mutex trade_callback_mutex_;
+    
+    // SEC Compliance: Order status observer for database persistence
+    OrderStatusCallback order_status_callback_;
+    mutable std::mutex order_status_callback_mutex_;
+    
     OrderReserveCallback reserve_callback_;
     OrderReleaseCallback release_callback_;
     
@@ -327,6 +335,8 @@ public:
     void setDayHigh(double high) { day_high_.store(static_cast<Price>(high * 100.0), std::memory_order_relaxed); }
     void setDayLow(double low) { day_low_.store(static_cast<Price>(low * 100.0), std::memory_order_relaxed); }
 
+    // SEC Compliance: Set callbacks for persistence
     void setTradeCallback(TradeCallback callback);
+    void setOrderStatusCallback(OrderStatusCallback callback);
     void setReservationHandlers(OrderReserveCallback reserve_cb, OrderReleaseCallback release_cb);
 };

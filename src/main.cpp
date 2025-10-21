@@ -26,6 +26,7 @@
 #include <cerrno>
 #include <cstdio>
 #include <stdexcept>
+#include <fstream>
 
 std::atomic<bool> shutdown_requested(false);
 std::atomic<bool> mode_switch_requested(false);
@@ -47,6 +48,17 @@ std::string getEnvOrDefault(const char* name, const std::string& fallback) {
         return value;
     }
     return fallback;
+}
+
+std::string readFileContents(const std::string& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        throw std::runtime_error("Failed to open file: " + path);
+    }
+
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
 }
 
 } // namespace
@@ -176,6 +188,10 @@ void displayAdminMenu() {
     std::cout << "║  3. Withdraw Funds                   ║" << std::endl;
     std::cout << "║  4. View All Accounts                ║" << std::endl;
     std::cout << "║  5. Create New Account               ║" << std::endl;
+    std::cout << "║  6. List Stocks                      ║" << std::endl;
+    std::cout << "║  7. Add New Stock                    ║" << std::endl;
+    std::cout << "║  8. Update Stock Info                ║" << std::endl;
+    std::cout << "║  9. Deactivate Stock                 ║" << std::endl;
     std::cout << "║  E. Return to Trading Mode           ║" << std::endl;
     std::cout << "║  Q. Quit Application                 ║" << std::endl;
     std::cout << "╚══════════════════════════════════════╝" << std::endl;
@@ -231,10 +247,12 @@ void depositFunds(DatabaseManager* db) {
     
     CashAmount new_cash = account.cash + DatabaseManager::UserAccount::fromDouble(amount);
     account.cash = new_cash;
+    account.buying_power = new_cash;
+    account.day_trading_buying_power = new_cash;
     
     if (db->updateUserAccount(account)) {
         std::cout << "✅ Deposit successful!" << std::endl;
-        std::cout << "New Balance: $" << std::fixed << std::setprecision(2) << (new_cash / 100.0) << std::endl;
+        std::cout << "New Balance: $" << std::fixed << std::setprecision(2) << account.cashToDouble() << std::endl;
     } else {
         std::cout << "❌ Deposit failed!" << std::endl;
     }
@@ -269,10 +287,12 @@ void withdrawFunds(DatabaseManager* db) {
     }
     
     account.cash -= withdrawal;
+    account.buying_power = std::min(account.buying_power, account.cash);
+    account.day_trading_buying_power = std::min(account.day_trading_buying_power, account.cash);
     
     if (db->updateUserAccount(account)) {
         std::cout << "✅ Withdrawal successful!" << std::endl;
-        std::cout << "New Balance: $" << std::fixed << std::setprecision(2) << (account.cash / 100.0) << std::endl;
+        std::cout << "New Balance: $" << std::fixed << std::setprecision(2) << account.cashToDouble() << std::endl;
     } else {
         std::cout << "❌ Withdrawal failed!" << std::endl;
     }
@@ -311,6 +331,117 @@ void createNewAccount(DatabaseManager* db) {
     }
 }
 
+void listAllStocks(DatabaseManager* db) {
+    auto stocks = db->getAllStocks();
+
+    std::cout << "\n╔══════════════════════════════════════════════╗" << std::endl;
+    std::cout << "  Registered Stocks" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════╣" << std::endl;
+
+    if (stocks.empty()) {
+        std::cout << "  No stocks found in master list." << std::endl;
+    } else {
+        for (const auto& stock : stocks) {
+            std::cout << "  Symbol:    " << stock.symbol;
+            if (!stock.is_active) {
+                std::cout << " (INACTIVE)";
+            }
+            std::cout << "\n  Company:   " << stock.company_name
+                      << "\n  Sector:    " << stock.sector
+                      << "\n  Price:     $" << std::fixed << std::setprecision(2) << stock.initial_price
+                      << "\n  Market Cap:" << stock.market_cap
+                      << "\n  Listed:    " << stock.listing_date << "\n" << std::endl;
+        }
+    }
+
+    std::cout << "╚══════════════════════════════════════════════╝" << std::endl;
+}
+
+void addNewStock(DatabaseManager* db) {
+    std::string symbol;
+    std::string company_name;
+    std::string sector;
+    double initial_price = 0.0;
+
+    std::cout << "\nEnter stock symbol (e.g., AAPL): ";
+    std::getline(std::cin, symbol);
+
+    if (symbol.empty()) {
+        std::cout << "❌ Symbol cannot be empty." << std::endl;
+        return;
+    }
+
+    std::cout << "Enter company name: ";
+    std::getline(std::cin, company_name);
+
+    std::cout << "Enter sector: ";
+    std::getline(std::cin, sector);
+
+    std::cout << "Enter initial price: $";
+    if (!(std::cin >> initial_price)) {
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        std::cout << "❌ Invalid price input." << std::endl;
+        return;
+    }
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+    if (initial_price <= 0.0) {
+        std::cout << "❌ Price must be greater than zero." << std::endl;
+        return;
+    }
+
+    if (db->addStock(symbol, company_name, sector, initial_price)) {
+        std::cout << "✅ Stock " << symbol << " registered successfully." << std::endl;
+    } else {
+        std::cout << "❌ Failed to register stock." << std::endl;
+    }
+}
+
+void updateStockInfo(DatabaseManager* db) {
+    std::string symbol;
+    std::string company_name;
+    std::string sector;
+
+    std::cout << "\nEnter stock symbol to update: ";
+    std::getline(std::cin, symbol);
+
+    if (symbol.empty()) {
+        std::cout << "❌ Symbol cannot be empty." << std::endl;
+        return;
+    }
+
+    std::cout << "Enter new company name: ";
+    std::getline(std::cin, company_name);
+
+    std::cout << "Enter new sector: ";
+    std::getline(std::cin, sector);
+
+    if (db->updateStock(symbol, company_name, sector)) {
+        std::cout << "✅ Stock " << symbol << " updated." << std::endl;
+    } else {
+        std::cout << "❌ Failed to update stock " << symbol << '.' << std::endl;
+    }
+}
+
+void deactivateStock(DatabaseManager* db) {
+    std::string symbol;
+
+    std::cout << "\nEnter stock symbol to deactivate: ";
+    std::getline(std::cin, symbol);
+
+    if (symbol.empty()) {
+        std::cout << "❌ Symbol cannot be empty." << std::endl;
+        return;
+    }
+
+    if (db->removeStock(symbol)) {
+        std::cout << "✅ Stock " << symbol << " set to inactive." << std::endl;
+    } else {
+        std::cout << "❌ Failed to deactivate stock " << symbol << '.' << std::endl;
+    }
+}
+
 void runAdminMode(DatabaseManager* db) {
     std::cout << "\n🔒 Entering ADMIN MODE - Exchange is CLOSED" << std::endl;
     std::cout << "All trading is suspended. Account management enabled." << std::endl;
@@ -338,6 +469,18 @@ void runAdminMode(DatabaseManager* db) {
                 break;
             case '5':
                 createNewAccount(db);
+                break;
+            case '6':
+                listAllStocks(db);
+                break;
+            case '7':
+                addNewStock(db);
+                break;
+            case '8':
+                updateStockInfo(db);
+                break;
+            case '9':
+                deactivateStock(db);
                 break;
             case 'E':
             case 'e':
@@ -467,8 +610,25 @@ int main(int argc, char* argv[]) {
     std::string shm_name = getEnvOrDefault("AUREX_SHM_NAME", "stock_exchange_orders");
     SharedMemoryOrderServer shm_server(shm_name, service.getExchange(), auth_manager.get());
 
+    const std::string grpc_cert_path = getEnvOrDefault("AUREX_GRPC_CERT_PATH", "server.crt");
+    const std::string grpc_key_path = getEnvOrDefault("AUREX_GRPC_KEY_PATH", "server.key");
+
+    std::string grpc_certificate;
+    std::string grpc_private_key;
+    try {
+        grpc_certificate = readFileContents(grpc_cert_path);
+        grpc_private_key = readFileContents(grpc_key_path);
+    } catch (const std::exception& ex) {
+        std::cerr << "Failed to load gRPC TLS materials: " << ex.what() << std::endl;
+        return -1;
+    }
+
+    grpc::SslServerCredentialsOptions ssl_options;
+    ssl_options.pem_key_cert_pairs.push_back({grpc_private_key, grpc_certificate});
+    auto grpc_credentials = grpc::SslServerCredentials(ssl_options);
+
     grpc::ServerBuilder builder;
-    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    builder.AddListeningPort(server_address, grpc_credentials);
     builder.RegisterService(&service);
     builder.SetMaxReceiveMessageSize(4 * 1024 * 1024);
     builder.SetMaxSendMessageSize(4 * 1024 * 1024);
@@ -485,6 +645,7 @@ int main(int argc, char* argv[]) {
         std::cout << "\n=== Stock Exchange Server ===" << std::endl;
         std::cout << "Developer mode enabled (-dev). Verbose logging active." << std::endl;
         std::cout << "gRPC Server listening on " << server_address << std::endl;
+    std::cout << "gRPC TLS certificate: " << grpc_cert_path << std::endl;
         std::cout << "TCP Order Server listening on " << tcp_address << ":" << tcp_port << std::endl;
         std::cout << "Shared Memory Server available at '" << shm_name << "'" << std::endl;
         std::cout << "Features:" << std::endl;
@@ -650,6 +811,7 @@ int main(int argc, char* argv[]) {
 
                         if (!shutdown_requested.load(std::memory_order_relaxed)) {
                             std::cout << "\n🔓 Restarting exchange for TRADING MODE..." << std::endl;
+                            auth_manager->clearCachedAccounts();
                             service.start();
                             tcp_server.start();
                             if (!shm_server.start()) {

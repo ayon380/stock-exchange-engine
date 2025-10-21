@@ -30,6 +30,11 @@ void Stock::setTradeCallback(TradeCallback callback) {
     trade_callback_ = std::move(callback);
 }
 
+void Stock::setOrderStatusCallback(OrderStatusCallback callback) {
+    std::lock_guard<std::mutex> lock(order_status_callback_mutex_);
+    order_status_callback_ = std::move(callback);
+}
+
 void Stock::setReservationHandlers(OrderReserveCallback reserve_cb, OrderReleaseCallback release_cb) {
     reserve_callback_ = std::move(reserve_cb);
     release_callback_ = std::move(release_cb);
@@ -571,6 +576,14 @@ void Stock::processNewOrder(const Order& incoming_order) {
     if (order != nullptr) {
         std::lock_guard<std::mutex> lock(order_status_mutex_);
         order_status_cache_[order->order_id] = *order;
+        
+        // SEC Compliance: Notify about order status change for persistence
+        if (order_status_callback_) {
+            std::lock_guard<std::mutex> cb_lock(order_status_callback_mutex_);
+            if (order_status_callback_) {
+                order_status_callback_(*order);
+            }
+        }
     }
     
     // Send trades to publisher
@@ -628,6 +641,7 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
     // Order types: 0=MARKET, 1=LIMIT, 2=IOC, 3=FOK
     
     // For FOK (Fill-or-Kill), check if order can be fully filled first
+    // CRITICAL FIX: Must exclude self-liquidity from the availability check
     if (incoming_order->type == 3) {
         int64_t available_qty = 0;
         
@@ -638,7 +652,14 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
                 if (incoming_order->type != 0 && incoming_order->price < level->price) {
                     break;
                 }
-                available_qty += level->total_quantity;
+                // Count only non-self orders
+                Order* maker = level->first_order;
+                while (maker) {
+                    if (maker->user_id != incoming_order->user_id) {
+                        available_qty += maker->remaining_qty;
+                    }
+                    maker = maker->next_at_price;
+                }
                 level = level->next_level;
             }
         } else { // SELL FOK
@@ -648,7 +669,14 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
                 if (incoming_order->type != 0 && incoming_order->price > level->price) {
                     break;
                 }
-                available_qty += level->total_quantity;
+                // Count only non-self orders
+                Order* maker = level->first_order;
+                while (maker) {
+                    if (maker->user_id != incoming_order->user_id) {
+                        available_qty += maker->remaining_qty;
+                    }
+                    maker = maker->next_at_price;
+                }
                 level = level->next_level;
             }
         }
@@ -724,6 +752,7 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
                     // Clean up
                     orders_.erase(order_at_level->order_id);
                     total_sell_orders_.fetch_sub(1, std::memory_order_relaxed);
+                    order_at_level->price_level = nullptr;  // Prevent use-after-free
                     order_pool_.deallocate(order_at_level);
                     
                     order_at_level = next_order;
@@ -764,11 +793,10 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
             
             if (sell_order->remaining_qty == 0) {
                 sell_order->status = "filled";
-                // Remove order from level
-                ask_level->first_order = sell_order->next_at_price;
-                if (!ask_level->first_order) {
-                    ask_level->last_order = nullptr;
-                }
+                
+                // CRITICAL FIX: Use removeOrder to properly unlink from the price level
+                // This handles all the pointer updates (first_order, last_order, prev/next)
+                ask_level->removeOrder(sell_order);
                 
                 // CRITICAL FIX: Decrement counter and clean up filled order
                 total_sell_orders_.fetch_sub(1, std::memory_order_relaxed);
@@ -859,6 +887,7 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
                     // Clean up
                     orders_.erase(order_at_level->order_id);
                     total_buy_orders_.fetch_sub(1, std::memory_order_relaxed);
+                    order_at_level->price_level = nullptr;  // Prevent use-after-free
                     order_pool_.deallocate(order_at_level);
                     
                     order_at_level = next_order;
@@ -899,11 +928,10 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
             
             if (buy_order->remaining_qty == 0) {
                 buy_order->status = "filled";
-                // Remove order from level
-                bid_level->first_order = buy_order->next_at_price;
-                if (!bid_level->first_order) {
-                    bid_level->last_order = nullptr;
-                }
+                
+                // CRITICAL FIX: Use removeOrder to properly unlink from the price level
+                // This handles all the pointer updates (first_order, last_order, prev/next)
+                bid_level->removeOrder(buy_order);
                 
                 // CRITICAL FIX: Decrement counter and clean up filled order
                 total_buy_orders_.fetch_sub(1, std::memory_order_relaxed);
