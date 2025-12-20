@@ -1,233 +1,289 @@
 #pragma once
-#include <pqxx/pqxx>
-#include <memory>
-#include <string>
-#include <vector>
-#include <thread>
+#include "LockFreeQueue.h"
+#include "MemoryPool.h"
 #include <atomic>
 #include <chrono>
-#include <queue>
-#include <mutex>
 #include <condition_variable>
-#include <iostream>
 #include <cstdint>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <pqxx/pqxx>
+#include <queue>
+#include <string>
+#include <thread>
+#include <vector>
 
 // Fixed-point arithmetic types
 using Price = int64_t;
 using CashAmount = int64_t;
 
 struct StockData {
-    std::string symbol;
-    Price last_price;
-    Price open_price;
-    int64_t volume;
-    int64_t timestamp_ms;
-    
-    StockData() : symbol(""), last_price(0), open_price(0), volume(0), timestamp_ms(0) {}
-    StockData(const std::string& sym, Price last, Price open, int64_t vol, int64_t ts)
-        : symbol(sym), last_price(last), open_price(open), volume(vol), timestamp_ms(ts) {}
+  std::string symbol;
+  Price last_price;
+  Price open_price;
+  int64_t volume;
+  int64_t timestamp_ms;
 
-    // Helper functions for conversion
-    static Price fromDouble(double dollars) { return static_cast<Price>(dollars * 100.0 + 0.5); }
-    double lastPriceToDouble() const { return static_cast<double>(last_price) / 100.0; }
-    double openPriceToDouble() const { return static_cast<double>(open_price) / 100.0; }
+  StockData()
+      : symbol(""), last_price(0), open_price(0), volume(0), timestamp_ms(0) {}
+  StockData(const std::string &sym, Price last, Price open, int64_t vol,
+            int64_t ts)
+      : symbol(sym), last_price(last), open_price(open), volume(vol),
+        timestamp_ms(ts) {}
+
+  // Helper functions for conversion
+  static Price fromDouble(double dollars) {
+    return static_cast<Price>(dollars * 100.0 + 0.5);
+  }
+  double lastPriceToDouble() const {
+    return static_cast<double>(last_price) / 100.0;
+  }
+  double openPriceToDouble() const {
+    return static_cast<double>(open_price) / 100.0;
+  }
 };
 
 // Connection pool for thread-safe database access
 class ConnectionPool {
 private:
-    std::queue<std::unique_ptr<pqxx::connection>> available_connections_;
-    std::mutex pool_mutex_;
-    std::condition_variable pool_cv_;
-    std::string connection_string_;
-    size_t pool_size_;
-    std::atomic<size_t> active_connections_{0};
-    
+  std::queue<std::unique_ptr<pqxx::connection>> available_connections_;
+  std::mutex pool_mutex_;
+  std::condition_variable pool_cv_;
+  std::string connection_string_;
+  size_t pool_size_;
+  std::atomic<size_t> active_connections_{0};
+
 public:
-    ConnectionPool(const std::string& connection_string, size_t pool_size = 5)
-        : connection_string_(connection_string), pool_size_(pool_size) {}
-    
-    ~ConnectionPool() {
-        std::lock_guard<std::mutex> lock(pool_mutex_);
-        while (!available_connections_.empty()) {
-            available_connections_.pop();
+  ConnectionPool(const std::string &connection_string, size_t pool_size = 5)
+      : connection_string_(connection_string), pool_size_(pool_size) {}
+
+  ~ConnectionPool() {
+    std::lock_guard<std::mutex> lock(pool_mutex_);
+    while (!available_connections_.empty()) {
+      available_connections_.pop();
+    }
+  }
+
+  bool initialize() {
+    try {
+      for (size_t i = 0; i < pool_size_; ++i) {
+        auto conn = std::make_unique<pqxx::connection>(connection_string_);
+        if (!conn->is_open()) {
+          return false;
         }
-    }
-    
-    bool initialize() {
-        try {
-            for (size_t i = 0; i < pool_size_; ++i) {
-                auto conn = std::make_unique<pqxx::connection>(connection_string_);
-                if (!conn->is_open()) {
-                    return false;
-                }
-                available_connections_.push(std::move(conn));
-            }
-            active_connections_ = pool_size_;
-            return true;
-        } catch (const std::exception& e) {
-            std::cerr << "Failed to initialize connection pool: " << e.what() << std::endl;
-            return false;
-        }
-    }
-    
-    std::unique_ptr<pqxx::connection> acquire() {
-        std::unique_lock<std::mutex> lock(pool_mutex_);
-        
-        // Wait for an available connection
-        pool_cv_.wait(lock, [this]() { return !available_connections_.empty(); });
-        
-        auto conn = std::move(available_connections_.front());
-        available_connections_.pop();
-        return conn;
-    }
-    
-    void release(std::unique_ptr<pqxx::connection> conn) {
-        std::lock_guard<std::mutex> lock(pool_mutex_);
         available_connections_.push(std::move(conn));
-        pool_cv_.notify_one();
+      }
+      active_connections_ = pool_size_;
+      return true;
+    } catch (const std::exception &e) {
+      std::cerr << "Failed to initialize connection pool: " << e.what()
+                << std::endl;
+      return false;
     }
-    
-    size_t available_count() const {
-        std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(pool_mutex_));
-        return available_connections_.size();
-    }
+  }
+
+  std::unique_ptr<pqxx::connection> acquire() {
+    std::unique_lock<std::mutex> lock(pool_mutex_);
+
+    // Wait for an available connection
+    pool_cv_.wait(lock, [this]() { return !available_connections_.empty(); });
+
+    auto conn = std::move(available_connections_.front());
+    available_connections_.pop();
+    return conn;
+  }
+
+  void release(std::unique_ptr<pqxx::connection> conn) {
+    std::lock_guard<std::mutex> lock(pool_mutex_);
+    available_connections_.push(std::move(conn));
+    pool_cv_.notify_one();
+  }
+
+  size_t available_count() const {
+    std::lock_guard<std::mutex> lock(const_cast<std::mutex &>(pool_mutex_));
+    return available_connections_.size();
+  }
 };
 
 // RAII wrapper for connection acquisition
 class ScopedConnection {
 private:
-    ConnectionPool& pool_;
-    std::unique_ptr<pqxx::connection> conn_;
-    
+  ConnectionPool &pool_;
+  std::unique_ptr<pqxx::connection> conn_;
+
 public:
-    ScopedConnection(ConnectionPool& pool) : pool_(pool), conn_(pool.acquire()) {}
-    
-    ~ScopedConnection() {
-        if (conn_) {
-            pool_.release(std::move(conn_));
-        }
+  ScopedConnection(ConnectionPool &pool) : pool_(pool), conn_(pool.acquire()) {}
+
+  ~ScopedConnection() {
+    if (conn_) {
+      pool_.release(std::move(conn_));
     }
-    
-    pqxx::connection* operator->() { return conn_.get(); }
-    pqxx::connection& get() { return *conn_; }
-    
-    // Delete copy operations
-    ScopedConnection(const ScopedConnection&) = delete;
-    ScopedConnection& operator=(const ScopedConnection&) = delete;
+  }
+
+  pqxx::connection *operator->() { return conn_.get(); }
+  pqxx::connection &get() { return *conn_; }
+
+  // Delete copy operations
+  ScopedConnection(const ScopedConnection &) = delete;
+  ScopedConnection &operator=(const ScopedConnection &) = delete;
 };
 
 class DatabaseManager {
 private:
-    std::unique_ptr<ConnectionPool> connection_pool_;
-    std::atomic<bool> running_;
-    std::thread sync_thread_;
-    std::mutex sync_mutex_;
-    std::condition_variable sync_cv_;
-    
-    std::string connection_string_;
-    std::chrono::seconds sync_interval_;
-    size_t pool_size_;
-    std::atomic<uint64_t> trade_id_sequence_{0};
-    
-    void initializeTables();
-    void syncWorker();
-    
+  std::unique_ptr<ConnectionPool> connection_pool_;
+  std::atomic<bool> running_;
+  std::thread sync_thread_;
+  std::mutex sync_mutex_;
+  std::condition_variable sync_cv_;
+
+  std::string connection_string_;
+  std::chrono::seconds sync_interval_;
+  size_t pool_size_;
+  std::atomic<uint64_t> trade_id_sequence_{0};
+
+  // Async Persistence
+  enum class PersistenceType { ORDER, TRADE };
+
+  struct PersistenceEntry {
+    PersistenceType type;
+    char order_id[50];
+    char user_id[50];
+    char symbol[10];
+    int side;
+    int order_type;
+    int64_t quantity;
+    Price price;
+    char status[20];
+    int64_t timestamp_ms;
+
+    // Trade specific fields
+    char buy_order_id[50];
+    char sell_order_id[50];
+    char buyer_id[50];
+    char seller_id[50];
+
+    PersistenceEntry() {} // Default constructor
+  };
+
+  std::thread persistence_thread_;
+  std::atomic<bool> persistence_running_;
+  MPSCQueue<PersistenceEntry, 65536>
+      persistence_queue_; // Lock-free queue for persistence events
+  MemoryPool<PersistenceEntry, 16384>
+      persistence_pool_; // Memory pool for events
+
+  void persistenceWorker();
+
+  void initializeTables();
+  void syncWorker();
+
 public:
-    DatabaseManager(const std::string& connection_string, 
-                   std::chrono::seconds sync_interval = std::chrono::seconds(30),
-                   size_t pool_size = 5);
-    ~DatabaseManager();
-    
-    bool connect();
-    void disconnect();
-    
-    void startBackgroundSync();
-    void stopBackgroundSync();
-    
-    // Stock data operations
-    bool saveStockData(const StockData& data);
-    bool saveStockDataBatch(const std::vector<StockData>& data_batch);
-    std::vector<StockData> loadStockData();
-    StockData getLatestStockData(const std::string& symbol);
-    
-    // Order and trade persistence (can be extended)
-    bool saveOrder(const std::string& order_data);
-    bool saveTrade(const std::string& trade_data);
-    
-    // SEC Compliance: Order and Trade Persistence
-    bool persistOrder(const std::string& order_id, const std::string& user_id, 
-                     const std::string& symbol, int side, int type, 
-                     int64_t quantity, Price price, const std::string& status, 
-                     int64_t timestamp_ms);
-    
-    bool persistTrade(const std::string& buy_order_id, const std::string& sell_order_id,
-                     const std::string& symbol, Price price, int64_t quantity,
-                     const std::string& buyer_id, const std::string& seller_id,
-                     int64_t timestamp_ms);
-    
-    // Security Event Logging (SEC Regulation S-P)
-    bool logSecurityEvent(const std::string& event_type, const std::string& user_id,
-                         const std::string& ip_address, const std::string& connection_id,
-                         const std::string& event_data, const std::string& severity,
-                         int64_t timestamp_ms);
-    
-    // Circuit Breaker Events (SEC Rule 80B)
-    bool logCircuitBreakerEvent(const std::string& symbol, int level, 
-                               Price trigger_price, Price reference_price,
-                               int halt_duration_minutes);
-    
-    // Stock Management (Admin Operations)
-    bool addStock(const std::string& symbol, const std::string& company_name,
-                 const std::string& sector, double initial_price);
-    bool removeStock(const std::string& symbol);
-    bool updateStock(const std::string& symbol, const std::string& company_name,
-                    const std::string& sector);
-    
-    struct StockInfo {
-        std::string symbol;
-        std::string company_name;
-        std::string sector;
-        int64_t market_cap;
-        double initial_price;
-        bool is_active;
-        std::string listing_date;
-    };
-    
-    std::vector<StockInfo> getAllStocks();
-    StockInfo getStockInfo(const std::string& symbol);
-    
-    // User account operations
-    struct UserAccount {
-        std::string user_id;
+  DatabaseManager(const std::string &connection_string,
+                  std::chrono::seconds sync_interval = std::chrono::seconds(30),
+                  size_t pool_size = 5);
+  ~DatabaseManager();
+
+  bool connect();
+  void disconnect();
+
+  void startBackgroundSync();
+  void stopBackgroundSync();
+
+  // Stock data operations
+  bool saveStockData(const StockData &data);
+  bool saveStockDataBatch(const std::vector<StockData> &data_batch);
+  std::vector<StockData> loadStockData();
+  StockData getLatestStockData(const std::string &symbol);
+
+  // Order and trade persistence (can be extended)
+  bool saveOrder(const std::string &order_data);
+  bool saveTrade(const std::string &trade_data);
+
+  // SEC Compliance: Order and Trade Persistence
+  bool persistOrder(const std::string &order_id, const std::string &user_id,
+                    const std::string &symbol, int side, int type,
+                    int64_t quantity, Price price, const std::string &status,
+                    int64_t timestamp_ms);
+
+  bool persistTrade(const std::string &buy_order_id,
+                    const std::string &sell_order_id, const std::string &symbol,
+                    Price price, int64_t quantity, const std::string &buyer_id,
+                    const std::string &seller_id, int64_t timestamp_ms);
+
+  // Security Event Logging (SEC Regulation S-P)
+  bool logSecurityEvent(const std::string &event_type,
+                        const std::string &user_id,
+                        const std::string &ip_address,
+                        const std::string &connection_id,
+                        const std::string &event_data,
+                        const std::string &severity, int64_t timestamp_ms);
+
+  // Circuit Breaker Events (SEC Rule 80B)
+  bool logCircuitBreakerEvent(const std::string &symbol, int level,
+                              Price trigger_price, Price reference_price,
+                              int halt_duration_minutes);
+
+  // Stock Management (Admin Operations)
+  bool addStock(const std::string &symbol, const std::string &company_name,
+                const std::string &sector, double initial_price);
+  bool removeStock(const std::string &symbol);
+  bool updateStock(const std::string &symbol, const std::string &company_name,
+                   const std::string &sector);
+
+  struct StockInfo {
+    std::string symbol;
+    std::string company_name;
+    std::string sector;
+    int64_t market_cap;
+    double initial_price;
+    bool is_active;
+    std::string listing_date;
+  };
+
+  std::vector<StockInfo> getAllStocks();
+  StockInfo getStockInfo(const std::string &symbol);
+
+  // User account operations
+  struct UserAccount {
+    std::string user_id;
     CashAmount cash;
     int64_t aapl_qty;
     int64_t googl_qty;
     int64_t msft_qty;
     int64_t amzn_qty;
     int64_t tsla_qty;
-        CashAmount buying_power;
-        CashAmount day_trading_buying_power;
-        int64_t total_trades;
-        int64_t realized_pnl;
-        bool is_active;
+    CashAmount buying_power;
+    CashAmount day_trading_buying_power;
+    int64_t total_trades;
+    int64_t realized_pnl;
+    bool is_active;
 
-        // Helper functions for conversion
-        static CashAmount fromDouble(double dollars) { return static_cast<CashAmount>(dollars * 100.0 + 0.5); }
-        double cashToDouble() const { return static_cast<double>(cash) / 100.0; }
-        double buyingPowerToDouble() const { return static_cast<double>(buying_power) / 100.0; }
-        
-    UserAccount() : user_id(""), cash(0), aapl_qty(0), googl_qty(0), msft_qty(0), 
-               amzn_qty(0), tsla_qty(0), buying_power(0), day_trading_buying_power(0),
-                       total_trades(0), realized_pnl(0), is_active(true) {}
-    };
-    
-    bool loadUserAccount(const std::string& user_id, UserAccount& account);
-    bool saveUserAccount(const UserAccount& account);
-    bool createUserAccount(const std::string& user_id, CashAmount initial_cash = 10000000); // $100,000.00 in fixed-point
-    UserAccount getUserAccount(const std::string& user_id); // Returns account or empty if not found
-    bool updateUserAccount(const UserAccount& account); // Update existing account
-    
-    // Health check
-    bool isConnected() const;
+    // Helper functions for conversion
+    static CashAmount fromDouble(double dollars) {
+      return static_cast<CashAmount>(dollars * 100.0 + 0.5);
+    }
+    double cashToDouble() const { return static_cast<double>(cash) / 100.0; }
+    double buyingPowerToDouble() const {
+      return static_cast<double>(buying_power) / 100.0;
+    }
+
+    UserAccount()
+        : user_id(""), cash(0), aapl_qty(0), googl_qty(0), msft_qty(0),
+          amzn_qty(0), tsla_qty(0), buying_power(0),
+          day_trading_buying_power(0), total_trades(0), realized_pnl(0),
+          is_active(true) {}
+  };
+
+  bool loadUserAccount(const std::string &user_id, UserAccount &account);
+  bool saveUserAccount(const UserAccount &account);
+  bool createUserAccount(
+      const std::string &user_id,
+      CashAmount initial_cash = 10000000); // $100,000.00 in fixed-point
+  UserAccount getUserAccount(
+      const std::string &user_id); // Returns account or empty if not found
+  bool updateUserAccount(const UserAccount &account); // Update existing account
+
+  // Health check
+  bool isConnected() const;
 };

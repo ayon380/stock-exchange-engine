@@ -94,3 +94,10 @@ target_include_directories(test_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(test_engine PRIVATE src)
 
 target_link_libraries(test_engine PRIVATE libpqxx::pqxx Boost::system Boost::thread Boost::interprocess redis++::redis++_static absl::flat_hash_map)
+
+# Queue Fix Verification Test
+add_executable(test_queue_fix
+    tests/test_queue_fix.cpp
+)
+target_include_directories(test_queue_fix PRIVATE src)
+target_link_libraries(test_queue_fix PRIVATE Boost::system Boost::thread Boost::interprocess)

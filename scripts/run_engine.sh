@@ -11,7 +11,7 @@ PROJECT_ROOT="/Users/ayon/Repos/Aurex/stock-exchange-engine"
 cd "$PROJECT_ROOT/build"
 
 # Build the project
-make -j4
+make -j8
 
 # Check if build succeeded
 if [ $? -ne 0 ]; then

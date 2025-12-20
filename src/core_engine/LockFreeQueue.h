@@ -1,127 +1,150 @@
 #pragma once
+#include <array>
 #include <atomic>
 #include <memory>
-#include <array>
 #include <thread>
 
 // Single Producer Single Consumer (SPSC) lock-free queue
-template<typename T, size_t Size>
-class SPSCQueue {
+template <typename T, size_t Size> class SPSCQueue {
 private:
-    static_assert((Size & (Size - 1)) == 0, "Size must be power of 2");
-    static constexpr size_t MASK = Size - 1;
-    
-    struct alignas(64) Slot {
-        std::atomic<T*> data{nullptr};
-    };
-    
-    alignas(64) std::array<Slot, Size> buffer_;
-    alignas(64) std::atomic<size_t> head_{0};
-    alignas(64) std::atomic<size_t> tail_{0};
-    
+  static_assert((Size & (Size - 1)) == 0, "Size must be power of 2");
+  static constexpr size_t MASK = Size - 1;
+
+  struct alignas(64) Slot {
+    std::atomic<T *> data{nullptr};
+  };
+
+  alignas(64) std::array<Slot, Size> buffer_;
+  alignas(64) std::atomic<size_t> head_{0};
+  alignas(64) std::atomic<size_t> tail_{0};
+
 public:
-    SPSCQueue() = default;
-    ~SPSCQueue() = default;
-    
-    // Non-copyable, non-movable
-    SPSCQueue(const SPSCQueue&) = delete;
-    SPSCQueue& operator=(const SPSCQueue&) = delete;
-    SPSCQueue(SPSCQueue&&) = delete;
-    SPSCQueue& operator=(SPSCQueue&&) = delete;
-    
-    // Producer side (single thread only)
-    bool enqueue(T* item) {
-        const size_t head = head_.load(std::memory_order_relaxed);
-        const size_t next_head = (head + 1) & MASK;
-        
-        if (next_head == tail_.load(std::memory_order_acquire)) {
-            return false; // Queue is full
-        }
-        
-        buffer_[head].data.store(item, std::memory_order_relaxed);
-        head_.store(next_head, std::memory_order_release);
-        return true;
+  SPSCQueue() = default;
+  ~SPSCQueue() = default;
+
+  // Non-copyable, non-movable
+  SPSCQueue(const SPSCQueue &) = delete;
+  SPSCQueue &operator=(const SPSCQueue &) = delete;
+  SPSCQueue(SPSCQueue &&) = delete;
+  SPSCQueue &operator=(SPSCQueue &&) = delete;
+
+  // Producer side (single thread only)
+  bool enqueue(T *item) {
+    const size_t head = head_.load(std::memory_order_relaxed);
+    const size_t next_head = (head + 1) & MASK;
+
+    if (next_head == tail_.load(std::memory_order_acquire)) {
+      return false; // Queue is full
     }
-    
-    // Consumer side (single thread only)
-    T* dequeue() {
-        const size_t tail = tail_.load(std::memory_order_relaxed);
-        
-        if (tail == head_.load(std::memory_order_acquire)) {
-            return nullptr; // Queue is empty
-        }
-        
-        T* item = buffer_[tail].data.load(std::memory_order_relaxed);
-        buffer_[tail].data.store(nullptr, std::memory_order_relaxed);
-        tail_.store((tail + 1) & MASK, std::memory_order_release);
-        return item;
+
+    buffer_[head].data.store(item, std::memory_order_relaxed);
+    head_.store(next_head, std::memory_order_release);
+    return true;
+  }
+
+  // Consumer side (single thread only)
+  T *dequeue() {
+    const size_t tail = tail_.load(std::memory_order_relaxed);
+
+    if (tail == head_.load(std::memory_order_acquire)) {
+      return nullptr; // Queue is empty
     }
-    
-    // Check if queue is empty (not thread-safe, for diagnostic only)
-    bool empty() const {
-        return head_.load(std::memory_order_relaxed) == tail_.load(std::memory_order_relaxed);
-    }
-    
-    // Get approximate size (not thread-safe, for diagnostic only)
-    size_t size() const {
-        const size_t head = head_.load(std::memory_order_relaxed);
-        const size_t tail = tail_.load(std::memory_order_relaxed);
-        return (head - tail) & MASK;
-    }
+
+    T *item = buffer_[tail].data.load(std::memory_order_relaxed);
+    buffer_[tail].data.store(nullptr, std::memory_order_relaxed);
+    tail_.store((tail + 1) & MASK, std::memory_order_release);
+    return item;
+  }
+
+  // Check if queue is empty (not thread-safe, for diagnostic only)
+  bool empty() const {
+    return head_.load(std::memory_order_relaxed) ==
+           tail_.load(std::memory_order_relaxed);
+  }
+
+  // Get approximate size (not thread-safe, for diagnostic only)
+  size_t size() const {
+    const size_t head = head_.load(std::memory_order_relaxed);
+    const size_t tail = tail_.load(std::memory_order_relaxed);
+    return (head - tail) & MASK;
+  }
 };
 
 // Multi-Producer Single Consumer (MPSC) lock-free queue
-template<typename T, size_t Size>
-class MPSCQueue {
+template <typename T, size_t Size> class MPSCQueue {
 private:
-    static_assert((Size & (Size - 1)) == 0, "Size must be power of 2");
-    static constexpr size_t MASK = Size - 1;
-    
-    struct alignas(64) Slot {
-        std::atomic<T*> data{nullptr};
-        std::atomic<bool> ready{false};
-    };
-    
-    alignas(64) std::array<Slot, Size> buffer_;
-    alignas(64) std::atomic<size_t> head_{0};
-    alignas(64) std::atomic<size_t> tail_{0};
-    
+  static_assert((Size & (Size - 1)) == 0, "Size must be power of 2");
+  static constexpr size_t MASK = Size - 1;
+
+  struct alignas(64) Slot {
+    std::atomic<T *> data{nullptr};
+    std::atomic<bool> ready{false};
+  };
+
+  alignas(64) std::array<Slot, Size> buffer_;
+  alignas(64) std::atomic<size_t> head_{0};
+  alignas(64) std::atomic<size_t> tail_{0};
+
 public:
-    MPSCQueue() = default;
-    ~MPSCQueue() = default;
-    
-    // Non-copyable, non-movable
-    MPSCQueue(const MPSCQueue&) = delete;
-    MPSCQueue& operator=(const MPSCQueue&) = delete;
-    MPSCQueue(MPSCQueue&&) = delete;
-    MPSCQueue& operator=(MPSCQueue&&) = delete;
-    
-    // Producer side (multiple threads)
-    bool enqueue(T* item) {
-        const size_t head = head_.fetch_add(1, std::memory_order_acq_rel) & MASK;
-        
-        // Wait for slot to be available
-        while (buffer_[head].ready.load(std::memory_order_acquire)) {
-            std::this_thread::yield();
-        }
-        
-        buffer_[head].data.store(item, std::memory_order_relaxed);
+  MPSCQueue() = default;
+  ~MPSCQueue() = default;
+
+  // Non-copyable, non-movable
+  MPSCQueue(const MPSCQueue &) = delete;
+  MPSCQueue &operator=(const MPSCQueue &) = delete;
+  MPSCQueue(MPSCQueue &&) = delete;
+  MPSCQueue &operator=(MPSCQueue &&) = delete;
+
+  // Producer side (multiple threads)
+  // Producer side (multiple threads)
+  bool enqueue(T *item) {
+    const size_t head = head_.fetch_add(1, std::memory_order_acq_rel) & MASK;
+
+    // Wait for slot to be available with timeout to prevent livelock
+    int retries = 0;
+    // Approx 1ms timeout with yield (assuming yield takes ~1us, 10000 retries
+    // is safe upper bound)
+    const int MAX_RETRIES = 10000;
+
+    while (buffer_[head].ready.load(std::memory_order_acquire)) {
+      if (++retries > MAX_RETRIES) {
+        // Timeout: Consumer is slow or dead.
+        // Mark slot as "skipped" by storing nullptr and setting ready=true.
+        // This allows future dequeue calls to advance past this slot.
+        buffer_[head].data.store(nullptr, std::memory_order_relaxed);
         buffer_[head].ready.store(true, std::memory_order_release);
-        return true;
+        return false; // Failed to enqueue
+      }
+      std::this_thread::yield();
     }
-    
-    // Consumer side (single thread only)
-    T* dequeue() {
-        const size_t tail = tail_.load(std::memory_order_relaxed);
-        
-        if (!buffer_[tail].ready.load(std::memory_order_acquire)) {
-            return nullptr; // Nothing ready
-        }
-        
-        T* item = buffer_[tail].data.load(std::memory_order_relaxed);
-        buffer_[tail].data.store(nullptr, std::memory_order_relaxed);
-        buffer_[tail].ready.store(false, std::memory_order_release);
-        tail_.store((tail + 1) & MASK, std::memory_order_release);
+
+    buffer_[head].data.store(item, std::memory_order_relaxed);
+    buffer_[head].ready.store(true, std::memory_order_release);
+    return true;
+  }
+
+  // Consumer side (single thread only)
+  T *dequeue() {
+    // Retry loop to handle skipped/failed slots
+    while (true) {
+      const size_t tail = tail_.load(std::memory_order_relaxed);
+
+      if (!buffer_[tail].ready.load(std::memory_order_acquire)) {
+        return nullptr; // Nothing ready (reached head)
+      }
+
+      T *item = buffer_[tail].data.load(std::memory_order_relaxed);
+      buffer_[tail].data.store(nullptr, std::memory_order_relaxed);
+      buffer_[tail].ready.store(false, std::memory_order_release);
+      tail_.store((tail + 1) & MASK, std::memory_order_release);
+
+      if (item) {
         return item;
+      }
+
+      // If item is nullptr, it was a skipped slot (producer timed out).
+      // Since ready was true, we've consumed this slot.
+      // Loop again to try the next slot immediately.
     }
+  }
 };

@@ -23,7 +23,12 @@ cd build
 # Configure CMake if needed
 if [ ! -f "Makefile" ] && [ ! -f "build.ninja" ]; then
     echo -e "${BLUE}🔧 Configuring CMake...${NC}"
-    cmake .. -DCMAKE_TOOLCHAIN_FILE=$(pwd)/../vcpkg/scripts/buildsystems/vcpkg.cmake
+    cmake .. \
+        -G "Unix Makefiles" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake
+
+
     
     if [ $? -ne 0 ]; then
         echo -e "${RED}❌ CMake configuration failed!${NC}"

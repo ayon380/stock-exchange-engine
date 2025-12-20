@@ -1,0 +1,398 @@
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  Aurex Stock Exchange - Test Suite Builder[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+
+[0;34m🔨 Building test suite...[0m
+[100%] Built target test_engine
+[0;32m✓ Build successful![0m
+
+[0;34m🔍 Checking database availability...[0m
+[1;33m⚠️  PostgreSQL not detected (tests will use in-memory mode)[0m
+[1;33m⚠️  Redis not detected (tests will skip Redis features)[0m
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  Running Tests[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+
+
+[1;34m╔════════════════════════════════════════════════════════╗[0m
+[1;34m║                                                        ║[0m
+[1;34m║        [1;33m🚀 AUREX STOCK EXCHANGE TEST SUITE 🚀[1;34m        ║[0m
+[1;34m║                                                        ║[0m
+[1;34m╚════════════════════════════════════════════════════════╝[0m
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Memory Pool[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mBasic allocation
+[1;32m  ✓ [0mAllocated value correct
+[1;32m  ✓ [0mDeallocation reduces count
+[1;32m  ✓ [0mMultiple allocations
+[1;32m  ✓ [0mAllocated count correct
+[1;32m  ✓ [0mAll deallocated
+[1;32m  ✓ [0mFallback allocation works
+[1;32m  ✓ [0mFallback deallocation works
+[1;32m  ✓ [0mComplex object allocation
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Lock-Free Queues[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mSPSC enqueue
+[1;32m  ✓ [0mSPSC not empty
+[1;32m  ✓ [0mSPSC dequeue correct value
+[1;32m  ✓ [0mSPSC empty after dequeue
+[1;32m  ✓ [0mSPSC enqueue multiple
+[1;32m  ✓ [0mSPSC full detection
+[1;32m  ✓ [0mSPSC maintains order
+[1;32m  ✓ [0mMPSC enqueue
+[1;32m  ✓ [0mMPSC dequeue correct value
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Order Validation[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mValid limit buy order accepted
+[1;32m  ✓ [0mEmpty order ID rejected
+[1;32m  ✓ [0mNegative quantity rejected
+[1;32m  ✓ [0mNegative price rejected
+[1;32m  ✓ [0mInvalid side rejected
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Order Matching[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mBuy order matched
+[1;32m  ✓ [0mSell order matched
+[1;32m  ✓ [0mPartial fill detected
+[1;32m  ✓ [0mRemaining quantity correct
+[1;32m  ✓ [0mSelf-trade prevention
+[1;32m  ✓ [0mFirst order filled first (price-time priority)
+[1;32m  ✓ [0mMarket order executed
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Market Data[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mInitial price set
+[1;32m  ✓ [0mPrice updated after trade
+[1;32m  ✓ [0mVolume increased
+[1;32m  ✓ [0mDay high updated
+[1;32m  ✓ [0mDay low updated
+[1;32m  ✓ [0mOrder book has bids
+[1;32m  ✓ [0mTop bid is highest price
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Concurrent Operations[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mConcurrent order submission
+[1;32m  ✓ [0mConcurrent market data reads
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Special Order Types[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mIOC cancelled when no match
+[1;32m  ✓ [0mFOK cancelled when can't fill completely
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Stock Exchange[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mExchange initialization
+[1;32m  ✓ [0mExchange started
+✓ All 2 stock threads stopped
+✓ Stopping index thread... done
+✓ Stopping database sync... done
+[1;32m  ✓ [0mExchange stopped
+[1;32m  ✓ [0mMultiple stocks loaded
+✓ All 2 stock threads stopped
+✓ Stopping index thread... done
+✓ Stopping database sync... done
+[1;32m  ✓ [0mIndex calculation works
+✓ All 2 stock threads stopped
+✓ Stopping index thread... done
+✓ Stopping database sync... done
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Stress Tests[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mHigh volume order submission
+[1;32m  ✓ [0mOrders processed
+[1;32m  ✓ [0mTrades executed
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Edge Cases & Validation[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mOrders added to order book
+[1;32m  ✓ [0mDuplicate order ID rejected
+[1;32m  ✓ [0mVWAP calculated with trades
+[1;32m  ✓ [0mLarge order quantity handled
+[1;32m  ✓ [0mPrice precision maintained
+[1;32m  ✓ [0mSelf-trade prevention with multiple orders
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Advanced Order Book Management[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mMultiple price levels created
+[1;32m  ✓ [0mBids ordered by price (descending)
+[1;32m  ✓ [0mOrders aggregated at same price level
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Order Cancellation and Modification[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mOrder cancelled successfully
+[1;32m  ✓ [0mCancel non-existent order handled
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Database Manager Operations[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+Failed to initialize connection pool: connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (::1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+
+Failed to initialize connection pool
+[1;31m  ✗ [0mDatabase connection established[1;31m [FAILED][0m
+Failed to initialize connection pool: connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (::1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+
+Failed to initialize connection pool
+[1;32m  ✓ [0mStock data saved successfully
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Performance and Throughput Metrics[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;35m  ℹ Average order submission latency: 0.71 μs[0m
+[1;35m  ℹ P99 latency: 5.00 μs[0m
+[1;32m  ✓ [0mAverage latency under 1000μs
+[1;32m  ✓ [0mP99 latency under 5000μs
+[1;35m  ℹ Trades executed: 500[0m
+[1;35m  ℹ Matching throughput: 806 trades/sec[0m
+[1;32m  ✓ [0mMatching engine processes trades
+[1;32m  ✓ [0mMatching throughput reasonable
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Price Precision & Fixed-Point Arithmetic[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mPenny precision maintained
+[1;32m  ✓ [0mPrice levels properly ordered by cents
+[1;32m  ✓ [0mLarge price values handled
+[1;32m  ✓ [0mPrice conversion bidirectional accuracy
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Comprehensive Order Type Testing[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mMARKET order executes at best available price
+[1;32m  ✓ [0mLIMIT order stays in book when no match
+[1;32m  ✓ [0mIOC order cancels when no immediate match
+[1;32m  ✓ [0mFOK order cancels when can't fill completely
+[1;32m  ✓ [0mFOK order fills when full quantity available
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Market Data Accuracy[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mVWAP calculation accurate across trades
+[1;32m  ✓ [0mDay high updates correctly
+[1;32m  ✓ [0mDay low updates correctly
+[1;32m  ✓ [0mVolume accumulates correctly
+[1;32m  ✓ [0mChange percent calculated correctly
+[1;32m  ✓ [0mChange points calculated correctly
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Order Book Depth & Integrity[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mMultiple bid levels created
+[1;32m  ✓ [0mBid levels in descending price order
+[1;32m  ✓ [0mMultiple ask levels created
+[1;32m  ✓ [0mAsk levels in ascending price order
+[1;32m  ✓ [0mBid-ask spread is positive
+[1;32m  ✓ [0mOrder book maintains depth after partial fills
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Index Calculation & Market Index[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mVolume index calculated
+[1;32m  ✓ [0mVolume index sorted by volume
+[1;32m  ✓ [0mChange index calculated
+[1;32m  ✓ [0mChange index sorted by change percent
+[1;32m  ✓ [0mMarket index has name
+[1;32m  ✓ [0mMarket index has value
+[1;32m  ✓ [0mMarket index has constituents
+[1;32m  ✓ [0mConstituent has valid weight
+[1;32m  ✓ [0mConstituent has valid weight
+[1;32m  ✓ [0mMarket index weights sum to reasonable value
+[1;32m  ✓ [0mAll stocks snapshot includes data
+[1;32m  ✓ [0mSnapshot structure includes order book fields
+✓ All 2 stock threads stopped
+✓ Stopping index thread... done
+✓ Stopping database sync... done
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Self-Trade Prevention[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mSelf-trade prevented
+[1;32m  ✓ [0mMultiple self-trades prevented
+[1;32m  ✓ [0mCross-user trading allowed
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Order Status Tracking[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mOrder status available after submission
+[1;32m  ✓ [0mOrder status is open
+[1;32m  ✓ [0mFilled order status correct
+[1;32m  ✓ [0mFilled order has zero remaining quantity
+[1;32m  ✓ [0mPartial fill status correct
+[1;32m  ✓ [0mPartial fill has correct remaining quantity
+[1;32m  ✓ [0mCancelled order status correct
+[1;32m  ✓ [0mNon-existent order returns empty
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Price-Time Priority[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mPrice priority: highest buy matched first
+[1;32m  ✓ [0mTime priority: earlier order matched first
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Order Validation Edge Cases[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mZero quantity rejected
+[1;32m  ✓ [0mNegative quantity rejected
+[1;32m  ✓ [0mZero price for LIMIT rejected
+[1;32m  ✓ [0mNegative price rejected
+[1;32m  ✓ [0mEmpty order ID rejected
+[1;32m  ✓ [0mEmpty user ID rejected
+[1;32m  ✓ [0mInvalid side rejected
+[1;32m  ✓ [0mInvalid order type rejected
+[1;32m  ✓ [0mExtremely high price rejected
+[1;32m  ✓ [0mMarket order accepted
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Overflow Protection (CRITICAL)[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mExtreme quantity rejected
+[1;32m  ✓ [0mLarge but safe order accepted
+[1;32m  ✓ [0mOverflow order rejected
+[1;32m  ✓ [0mMaximum quantity accepted
+[1;32m  ✓ [0mOver-maximum quantity rejected
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Order Book Depth Limits[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mMany orders accepted under limit
+[1;32m  ✓ [0mOrder book has reasonable depth
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: VWAP Overflow Protection[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mVWAP calculated after many trades
+[1;32m  ✓ [0mVWAP in reasonable range
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Concurrent Cancellation Stress[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mConcurrent cancellations handled
+[1;32m  ✓ [0mSome cancellations successful
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Extreme Price Values[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mMinimum price accepted
+[1;32m  ✓ [0mBelow minimum price rejected
+[1;32m  ✓ [0mMaximum price accepted
+[1;32m  ✓ [0mAbove maximum price rejected
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Critical Fix: CPU Affinity Division by Zero[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  ℹ Available CPU cores: 9[0m
+[1;32m  ✓ [0mExchange initialized successfully
+[1;32m  ✓ [0mExchange has stocks loaded
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Critical Fix: Static Counter Data Race[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mMultiple stocks ran without race condition
+[1;32m  ✓ [0mOrders processed across all stocks
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Critical Fix: Self-Trade Level Cleanup[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mSelf-trade prevention cancelled orders properly
+[1;32m  ✓ [0mNew orders work after self-trade cleanup
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Critical Fix: Cancelled Order Memory Leak[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  Testing IOC, FOK, and MARKET order cancellation cleanup...[0m
+[1;32m  ✓ [0mIOC orders properly cancelled
+[1;32m  ✓ [0mFOK orders properly cancelled
+[1;32m  ✓ [0mMemory pool not exhausted after 200 cancellations
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Critical Fix: Database Health Check[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+Failed to initialize connection pool: connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (::1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+
+Failed to initialize connection pool
+[1;33m  ℹ Database not available, skipping health test[0m
+[1;32m  ✓ [0mDatabase health check (skipped)
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Critical Fix: Order Counter & Memory Cleanup[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  Submitting 12,000 matching orders (6,000 buys + 6,000 sells)...[0m
+[1;36m  ℹ Orders processed: 12000[0m
+[1;36m  ℹ Trades executed: 6000[0m
+[1;32m  ✓ [0mOrders processed (>12,000)
+[1;32m  ✓ [0mTrades executed (>5,500)
+[1;36m  Verifying counters were decremented...[0m
+[1;32m  ✓ [0mAdditional orders accepted after 12k fills
+[1;32m  ✓ [0mNo false 'depth limit reached' error
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Critical Fix: Memory Stability[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  Running 3 rounds of 2,000 matched orders each...[0m
+[1;36m  ℹ Total orders processed: 6000[0m
+[1;36m  ℹ Total trades executed: 3000[0m
+[1;32m  ✓ [0mAll rounds processed successfully
+[1;32m  ✓ [0mMemory pool didn't exhaust
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Testing: Adaptive Load Management[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  ✓ [0mExchange initialization
+  ℹ️  Testing IDLE mode (no orders, should have low CPU)...
+[1;32m  ✓ [0mExchange running in IDLE mode
+  ℹ️  Testing LOW load (10 orders/sec)...
+[1;32m  ✓ [0mOrders processed under LOW load
+  ℹ️  Testing HIGH load (burst of 200 orders)...
+[1;32m  ✓ [0mOrders processed under HIGH load
+  ℹ️  Testing return to IDLE (CPU should drop)...
+[1;32m  ✓ [0mExchange returns to stable state
+✓ All 2 stock threads stopped
+✓ Stopping index thread... done
+✓ Stopping database sync... done
+[1;32m  ✓ [0mExchange stops cleanly
+
+  [1;36m💡 Adaptive Load Management Features:[0m
+     • IDLE mode: 5ms sleep → ~0% CPU when no orders
+     • LOW mode: 1ms sleep → minimal CPU for light traffic
+     • WARMING mode: 100μs sleep → ramping up
+     • ACTIVE mode: 1μs sleep → moderate load
+     • PEAK mode: busy-wait → maximum performance
+     • Automatic adaptation based on order flow
+
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;34m  Test Summary[0m
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;32m  Passed: 158[0m
+[1;31m  Failed: 1[0m
+  Total:  159 (99.4%)
+[1;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;31m
+  ⚠️  Some tests failed![0m
+
+[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;31m  ✗ Some tests failed![0m
+[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
