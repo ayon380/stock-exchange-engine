@@ -1,3 +1,10 @@
+# Copyright (c) 2026 Ayon Sarkar. All Rights Reserved.
+#
+# This source code is licensed under the terms found in the
+# LICENSE file in the root directory of this source tree.
+#
+# USE FOR EVALUATION ONLY. NO PRODUCTION USE OR COPYING PERMITTED.
+
 import grpc, time, threading
 import matplotlib.pyplot as plt
 import StockService_pb2 as pb
