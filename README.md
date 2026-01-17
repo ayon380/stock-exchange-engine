@@ -1428,10 +1428,10 @@ appendonly no
 
 ## License
 
-Copyright © 2025 Ayon Sarkar. Project developed for research and portfolio demonstration.
+Copyright © 2026 Ayon Sarkar. Project developed for research and portfolio demonstration.
 
 ---
 
 **Document Version**: 1.0  
-**Last Updated**: October 10, 2025  
+**Last Updated**: January 17, 2026  
 **Authors**: Architected & Developed by Ayon Sarkar
