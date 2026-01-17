@@ -3,7 +3,9 @@
 ![C++](https://img.shields.io/badge/std-C%2B%2B20-blue?style=for-the-badge&logo=c%2B%2B) ![Latency](https://img.shields.io/badge/Latency-10_µs-green?style=for-the-badge) ![Throughput](https://img.shields.io/badge/Throughput-50k_ops%2Fs-orange?style=for-the-badge) ![License](https://img.shields.io/badge/License-Source_Available-red?style=for-the-badge)
 
 
-> **Note to Recruiters**: While this repository uses a source-available license to protect IP, I am happy to walk through the implementation details (lock-free queues, memory arenas, TCP protocol) in a technical interview.
+> **Note**: While this repository uses a source-available license to protect IP, I am happy to walk through the implementation details if needed.
+
+**Architected & Developed by Ayon Sarkar**
 
 ## Performance Characteristics
 
