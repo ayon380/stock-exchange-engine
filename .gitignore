@@ -22,6 +22,7 @@ stocktest/stocktest.exe
 # --- Dependency Management ---
 # vcpkg installed libraries
 vcpkg_installed/
+docs/
 
 # --- Generated Files ---
 # Protocol Buffers/gRPC generated files for Python and C++
