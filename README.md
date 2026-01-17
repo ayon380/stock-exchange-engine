@@ -1,17 +1,88 @@
-# Aurex Stock Exchange - System Design Document
+# Aurex: High-Performance C++ Stock Exchange
+
+![C++](https://img.shields.io/badge/std-C%2B%2B20-blue?style=for-the-badge&logo=c%2B%2B) ![Latency](https://img.shields.io/badge/Latency-10_µs-green?style=for-the-badge) ![Throughput](https://img.shields.io/badge/Throughput-50k_ops%2Fs-orange?style=for-the-badge) ![License](https://img.shields.io/badge/License-Source_Available-red?style=for-the-badge)
+
+
+> **Note to Recruiters**: While this repository uses a source-available license to protect IP, I am happy to walk through the implementation details (lock-free queues, memory arenas, TCP protocol) in a technical interview.
+
+## Performance Characteristics
+
+### Benchmarks (MacBook Air M4, 16GB RAM)
+
+#### Latency Metrics
+
+| Operation | Latency | Details |
+|-----------|---------|---------|
+| Order Submission | < 50 μs | Queue enqueue time |
+| Order Matching | 10-30 μs | Single order match |
+| Market Data Update | < 100 μs | End-to-end propagation |
+| Database Write | 1-5 ms | Async batch operation |
+| gRPC Round Trip | 1-2 ms | Including serialization |
+| TCP Round Trip | 500 μs | Binary protocol |
+
+#### Throughput Metrics
+
+| Test Scenario | Throughput | Configuration |
+|---------------|------------|---------------|
+| Order Submission (gRPC) | 50,000+ orders/sec | 2 stocks, 10 clients |
+| Market Data Updates | 100,000+ updates/sec | Streaming mode |
+| Simultaneous Connections | 10,000+ | gRPC streams |
+| Trade Matching | 30,000+ trades/sec | Peak load |
+
+#### Resource Usage
+
+| Resource | Usage | Configuration |
+|----------|-------|---------------|
+| CPU (Idle) | 5-10% | 2 stocks running |
+| CPU (Peak) | 60-80% | High load (50k orders/sec) |
+| Memory | 100-200 MB | 2 stocks, 10k orders in book |
+| Network | 10-50 MB/s | Market data streaming |
+
+### Threading Efficiency
+
+```
+Threads Per Stock: 3 (matching, market data, trade publisher)
+System Threads: 2 (index calculator, database sync)
+Total Threads (N stocks): 3N + 2
+
+Examples:
+- 1 stock: 5 threads
+- 2 stocks: 8 threads
+- 10 stocks: 32 threads
+- 50 stocks: 152 threads
+
+Recommended: Keep N < (CPU cores / 3) for optimal performance
+```
+
+### CPU Affinity Strategy
+
+```cpp
+// Core allocation (example for 8-core system)
+Stock 1 Matching:     Core 1
+Stock 1 Market Data:  Core 2
+Stock 1 Trade Pub:    Core 3
+Stock 2 Matching:     Core 4
+Stock 2 Market Data:  Core 5
+Stock 2 Trade Pub:    Core 6
+Index Calculator:     Core 7
+Database Sync:        Core 8
+```
+
+---
 
 ## Table of Contents
 1. [Overview](#overview)
 2. [System Architecture](#system-architecture)
 3. [Component Design](#component-design)
+
 4. [Data Flow](#data-flow)
 5. [Technology Stack](#technology-stack)
-6. [Performance Characteristics](#performance-characteristics)
-7. [Security Architecture](#security-architecture)
-8. [Scalability & High Availability](#scalability--high-availability)
-9. [Database Design](#database-design)
-10. [API Design](#api-design)
-11. [Deployment Architecture](#deployment-architecture)
+6. [Security Architecture](#security-architecture)
+7. [Scalability & High Availability](#scalability--high-availability)
+8. [Database Design](#database-design)
+9. [API Design](#api-design)
+10. [Deployment Architecture](#deployment-architecture)
+
 
 ---
 
@@ -532,70 +603,7 @@ gRPC Stream   WebSocket     Redis Cache
 
 ---
 
-## Performance Characteristics
 
-### Benchmarks (MacBook Air M4, 16GB RAM)
-
-#### Latency Metrics
-
-| Operation | Latency | Details |
-|-----------|---------|---------|
-| Order Submission | < 50 μs | Queue enqueue time |
-| Order Matching | 10-30 μs | Single order match |
-| Market Data Update | < 100 μs | End-to-end propagation |
-| Database Write | 1-5 ms | Async batch operation |
-| gRPC Round Trip | 1-2 ms | Including serialization |
-| TCP Round Trip | 500 μs | Binary protocol |
-
-#### Throughput Metrics
-
-| Test Scenario | Throughput | Configuration |
-|---------------|------------|---------------|
-| Order Submission (gRPC) | 50,000+ orders/sec | 2 stocks, 10 clients |
-| Market Data Updates | 100,000+ updates/sec | Streaming mode |
-| Simultaneous Connections | 10,000+ | gRPC streams |
-| Trade Matching | 30,000+ trades/sec | Peak load |
-
-#### Resource Usage
-
-| Resource | Usage | Configuration |
-|----------|-------|---------------|
-| CPU (Idle) | 5-10% | 2 stocks running |
-| CPU (Peak) | 60-80% | High load (50k orders/sec) |
-| Memory | 100-200 MB | 2 stocks, 10k orders in book |
-| Network | 10-50 MB/s | Market data streaming |
-
-### Threading Efficiency
-
-```
-Threads Per Stock: 3 (matching, market data, trade publisher)
-System Threads: 2 (index calculator, database sync)
-Total Threads (N stocks): 3N + 2
-
-Examples:
-- 1 stock: 5 threads
-- 2 stocks: 8 threads
-- 10 stocks: 32 threads
-- 50 stocks: 152 threads
-
-Recommended: Keep N < (CPU cores / 3) for optimal performance
-```
-
-### CPU Affinity Strategy
-
-```cpp
-// Core allocation (example for 8-core system)
-Stock 1 Matching:     Core 1
-Stock 1 Market Data:  Core 2
-Stock 1 Trade Pub:    Core 3
-Stock 2 Matching:     Core 4
-Stock 2 Market Data:  Core 5
-Stock 2 Trade Pub:    Core 6
-Index Calculator:     Core 7
-Database Sync:        Core 8
-```
-
----
 
 ## Security Architecture
 
@@ -1420,10 +1428,10 @@ appendonly no
 
 ## License
 
-Copyright © 2025 Aurex Stock Exchange. All rights reserved.
+Copyright © 2025 Ayon Sarkar. Project developed for research and portfolio demonstration.
 
 ---
 
 **Document Version**: 1.0  
 **Last Updated**: October 10, 2025  
-**Authors**: Aurex Engineering Team
+**Authors**: Architected & Developed by Ayon Sarkar
