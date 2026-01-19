@@ -3,13 +3,19 @@
 ![C++](https://img.shields.io/badge/std-C%2B%2B20-blue?style=for-the-badge&logo=c%2B%2B) ![Latency](https://img.shields.io/badge/Latency-10_µs-green?style=for-the-badge) ![Throughput](https://img.shields.io/badge/Throughput-50k_ops%2Fs-orange?style=for-the-badge) ![License](https://img.shields.io/badge/License-Source_Available-red?style=for-the-badge)
 
 
-> **Note**: While this repository uses a source-available license to protect IP, I am happy to walk through the implementation details if needed.
+> **Note -1**: While this repository uses a source-available license to protect IP, I am happy to walk through the implementation details if needed.
+
+> **Note -2**: This is a work in progress. The code is not production-ready and may contain bugs.
+
+> **Note -3**: Some benchmarks might be a bit inconsistent as this project was intially on a Windows Laptop (Ryzen 5 5500U(6c/12t)) and later moved to a MacBook Air M4 for consecutive development and testing. Onwards from v0.6 windows Compatibility is not confirmed, Fixes might be needed for windows users. On Average M4 performed almost 4 to 10x faster on benchmarks, though M4 throttled after around 2minutes. The biggest improvement came in network latencies in Mac compared to Windows.
+
+> **Note -4**: Docs may not be up to date with the codebase. Some features or design may be dropped or added.
 
 **Architected & Developed by Ayon Sarkar**
 
 ## Performance Characteristics
 
-### Benchmarks (MacBook Air M4, 16GB RAM)
+### Benchmarks (MacBook Air M4 15", 16GB RAM)
 
 #### Latency Metrics
 
@@ -76,7 +82,6 @@ Database Sync:        Core 8
 1. [Overview](#overview)
 2. [System Architecture](#system-architecture)
 3. [Component Design](#component-design)
-
 4. [Data Flow](#data-flow)
 5. [Technology Stack](#technology-stack)
 6. [Security Architecture](#security-architecture)
@@ -84,6 +89,9 @@ Database Sync:        Core 8
 8. [Database Design](#database-design)
 9. [API Design](#api-design)
 10. [Deployment Architecture](#deployment-architecture)
+11. [System Requirements](#system-requirements)
+12. [Installation & Setup](#installation--setup)
+13. [Running the System](#running-the-system)
 
 
 ---
@@ -113,11 +121,11 @@ Aurex is a high-performance stock exchange platform designed for low-latency tra
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         Client Layer                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ Web Browser  │  │ Mobile App   │  │  API Client  │          │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
-└─────────┼──────────────────┼──────────────────┼──────────────────┘
+│                         Client Layer                            │
+│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐         │
+│  │ Web Browser  │   │ Mobile App   │   │  API Client  │         │  
+│  └──────┬───────┘   └──────┬───────┘   └──────┬───────┘         │
+└─────────┼──────────────────┼──────────────────┼─────────────────┘
           │                  │                  │
           │ HTTPS/WSS        │ HTTPS/WSS        │ gRPC/TCP
           │                  │                  │
@@ -126,7 +134,7 @@ Aurex is a high-performance stock exchange platform designed for low-latency tra
 │  ┌──────▼───────────────────────────────────┐ │                  │
 │  │      Next.js Application Server          │ │                  │
 │  │  - Authentication & Session Management   │ │                  │
-│  │  - 2FA (TOTP/Email)                     │ │                  │
+│  │  - 2FA (TOTP/Email)                      │ │                  │
 │  │  - Trading Dashboard UI                  │ │                  │
 │  └──────┬───────────────────────────────────┘ │                  │
 └─────────┼─────────────────────────────────────┼──────────────────┘
@@ -135,12 +143,12 @@ Aurex is a high-performance stock exchange platform designed for low-latency tra
           │                                     │
 ┌─────────┼─────────────────────────────────────┼──────────────────┐
 │         │              API Gateway Layer      │                  │
-│  ┌──────▼──────────────────┐  ┌──────────────▼────────────────┐ │
-│  │   gRPC Server           │  │   TCP Binary Server           │ │
-│  │  - Protocol Buffers     │  │  - Custom Binary Protocol     │ │
-│  │  - HTTP/2 Streaming     │  │  - Connection Pooling         │ │
-│  │  - Load Balancing       │  │  - Ultra-Low Latency          │ │
-│  └──────┬──────────────────┘  └──────────────┬────────────────┘ │
+│  ┌──────▼──────────────────┐   ┌──────────────▼────────────────┐ │
+│  │   gRPC Server           │   │   TCP Binary Server           │ │
+│  │  - Protocol Buffers     │   │  - Custom Binary Protocol     │ │
+│  │  - HTTP/2 Streaming     │   │  - Connection Pooling         │ │
+│  │  - Load Balancing       │   │  - Ultra-Low Latency          │ │
+│  └──────┬──────────────────┘   └──────────────┬────────────────┘ │
 │         │                                     │                  │
 │  ┌──────▼─────────────────────────────────────▼────────────────┐ │
 │  │         Authentication Manager                              │ │
@@ -148,21 +156,21 @@ Aurex is a high-performance stock exchange platform designed for low-latency tra
 │  │  - Token Validation                                         │ │
 │  │  - User Account Management                                  │ │
 │  └──────┬──────────────────────────────────────────────────────┘ │
-└─────────┼─────────────────────────────────────────────────────────┘
+└─────────┼────────────────────────────────────────────────────────┘
           │
           │ Lock-Free Queues
           │
-┌─────────▼─────────────────────────────────────────────────────────┐
-│                    Core Trading Engine                            │
-│                                                                   │
+┌─────────▼────────────────────────────────────────────────────────┐
+│                    Core Trading Engine                           │
+│                                                                  │
 │  ┌─────────────────────────────────────────────────────────────┐ │
 │  │              StockExchange (Orchestrator)                   │ │
 │  │  - Multi-Stock Management                                   │ │
 │  │  - Index Calculation                                        │ │
 │  │  - Market Data Distribution                                 │ │
-│  └─────┬──────────────────────────────────┬──────────────────┘  │
+│  └─────┬──────────────────────────────────┬────────────────────┘ │
 │        │                                  │                      │
-│  ┌─────▼──────┐  ┌──────────┐  ┌─────────▼─────┐               │
+│  ┌─────▼──────┐  ┌─────── ───┐  ┌─────────▼─  ──┐               │
 │  │Stock: AAPL │  │Stock: MSFT│  │ Stock: GOOGL │  (N stocks)   │
 │  │            │  │           │  │              │                │
 │  │ ┌────────┐ │  │┌────────┐ │  │ ┌──────────┐│                │
@@ -585,7 +593,7 @@ gRPC Stream   WebSocket     Redis Cache
 
 | Component | Technology | Version | Purpose |
 |-----------|-----------|---------|---------|
-| Framework | Next.js | 14+ | React framework |
+| Framework | Next.js | 15+ | React framework |
 | Language | TypeScript | 5.0+ | Type-safe JavaScript |
 | UI Library | React | 18+ | Component-based UI |
 | Styling | Tailwind CSS | 3.0+ | Utility-first CSS |
@@ -1308,17 +1316,6 @@ spec:
   type: LoadBalancer
 ```
 
-### System Requirements (Production)
-
-| Component | Minimum | Recommended |
-|-----------|---------|-------------|
-| CPU | 8 cores | 16+ cores |
-| RAM | 16GB | 32GB+ |
-| Storage | 500GB SSD | 1TB+ NVMe SSD |
-| Network | 1Gbps | 10Gbps |
-| OS | Ubuntu 20.04+ | Ubuntu 22.04 LTS |
-
----
 
 ## Future Enhancements
 
@@ -1411,6 +1408,269 @@ save ""  # Disable persistence for cache (optional)
 appendonly no
 ```
 
+## System Requirements
+
+### Hardware Requirements
+
+#### Minimum Requirements
+- **CPU**: 4-core processor (Intel i5/AMD Ryzen 5 or equivalent)
+- **RAM**: 8GB
+- **Storage**: 50GB SSD
+- **Network**: 1Gbps Ethernet
+
+#### Recommended Requirements
+- **CPU**: 8-core processor with hyper-threading (Intel i7/AMD Ryzen 7 or equivalent)
+- **RAM**: 16GB+
+- **Storage**: NVMe SSD (500GB+)
+- **Network**: 10Gbps Ethernet or faster
+
+#### Tested Hardware
+- **MacBook Air M4 15-inch**
+  - Apple M4 chip (10-core CPU, 10-core GPU)
+  - 16GB unified memory
+  - 512GB SSD
+
+### Threading Requirements
+
+The Stock Exchange Engine uses a multi-threaded architecture optimized for low latency and high throughput. Thread requirements scale with the number of stock symbols being traded.
+
+#### Threads Per Stock Symbol
+Each stock symbol requires **3 dedicated threads**:
+- **Matching Engine Thread**: Processes order matching and trade execution
+- **Market Data Publisher Thread**: Publishes real-time price and order book updates
+- **Trade Publisher Thread**: Handles trade confirmations and position updates
+
+#### System-Level Threads
+Additional threads run at the exchange level:
+- **Index Calculation Thread**: Calculates market indices (S&P 500 equivalent)
+- **Database Sync Thread**: Handles periodic data persistence
+
+#### Total Thread Calculation
+```
+Total Threads = (3 × Number of Stock Symbols) + 2
+
+Examples:
+- 1 stock symbol: 3 + 2 = 5 threads
+- 2 stock symbols: 6 + 2 = 8 threads (current test configuration)
+- 10 stock symbols: 30 + 2 = 32 threads
+- 50 stock symbols: 150 + 2 = 152 threads
+```
+
+#### CPU Core Recommendations
+- **Minimum**: 4 cores (for 1-2 stock symbols)
+- **Recommended**: 8+ cores with hyper-threading
+- **Production**: 16+ cores for 10+ stock symbols
+- **High-Frequency**: 32+ cores for 50+ stock symbols
+
+#### Thread Affinity
+Threads are automatically pinned to specific CPU cores to:
+- Minimize context switching
+- Reduce cache thrashing
+- Ensure predictable latency
+- Maximize CPU cache utilization
+
+### Software Requirements
+
+#### Operating System
+- **Linux**: Ubuntu 20.04+, CentOS 8+, RHEL 8+
+- **macOS**: 12.0+ (Monterey or later)
+- **Windows**: 10/11 
+
+#### Dependencies
+- **C++ Compiler**: GCC 9+, Clang 10+, MSVC 2019+
+- **CMake**: 3.16+
+- **PostgreSQL**: 12+
+- **Redis**: 6.0+
+- **Protocol Buffers**: 3.12+
+- **gRPC**: 1.30+
+- **Boost**: 1.70+
+- **vcpkg**: Latest version
+
+## Installation
+
+### 1. Install System Dependencies
+
+#### Ubuntu/Debian
+```bash
+sudo apt update
+sudo apt install -y \
+    build-essential \
+    cmake \
+    git \
+    postgresql \
+    postgresql-contrib \
+    redis-server \
+    libboost-all-dev \
+    libpqxx-dev \
+    protobuf-compiler \
+    libprotobuf-dev \
+    libgrpc++-dev \
+    protobuf-compiler-grpc
+```
+
+#### macOS
+```bash
+# Install Homebrew if not installed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install dependencies
+brew install \
+    cmake \
+    postgresql \
+    redis \
+    boost \
+    protobuf \
+    grpc \
+    libpqxx
+```
+
+#### CentOS/RHEL/Fedora
+```bash
+sudo dnf install -y \
+    gcc-c++ \
+    cmake \
+    git \
+    postgresql-server \
+    postgresql-contrib \
+    redis \
+    boost-devel \
+    protobuf-devel \
+    grpc-devel \
+    libpqxx-devel
+```
+
+### 2. Install vcpkg Package Manager
+```bash
+git clone https://github.com/Microsoft/vcpkg.git
+cd vcpkg
+./bootstrap-vcpkg.sh  # or bootstrap-vcpkg.bat on Windows
+./vcpkg integrate install
+```
+
+### 3. Clone and Build the Project
+```bash
+# Clone the repository
+git clone <repository-url>
+cd stock-exchange-engine
+
+# Configure with vcpkg
+cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake
+
+# Build in Release mode
+cmake --build build --config Release
+```
+
+### 4. Database Setup
+
+#### PostgreSQL Configuration
+```bash
+# Start PostgreSQL service
+sudo systemctl start postgresql  # Linux
+brew services start postgresql   # macOS
+
+# Create database and user
+sudo -u postgres psql
+```
+
+```sql
+-- Create database and user
+CREATE DATABASE stock_exchange;
+CREATE USER stock_user WITH ENCRYPTED PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE stock_exchange TO stock_user;
+
+-- Connect to the database
+\c stock_exchange;
+
+
+#### Database Schema
+The system creates the following tables:
+- `stock_data`: Historical price and volume data
+- `user_accounts`: User account information and balances
+- `orders`: Order history and status
+- `trades`: Executed trade records
+
+### 5. Redis Setup
+```bash
+# Start Redis service
+sudo systemctl start redis  # Linux
+brew services start redis   # macOS
+
+# Configure Redis (optional)
+redis-cli CONFIG SET maxmemory 512mb
+redis-cli CONFIG SET maxmemory-policy allkeys-lru
+```
+
+### 6. Configuration
+
+#### Environment Variables
+```bash
+# Database connection
+export DATABASE_URL="postgresql://stock_user:password@localhost/stock_exchange"
+
+# Redis connection
+export REDIS_URL="redis://localhost:6379"
+
+# Server ports
+export GRPC_PORT=50051
+export TCP_PORT=8080
+
+# Performance tuning
+export CPU_CORES="1,2,3,4"  # CPU cores for different threads
+export QUEUE_SIZE=4096      # Lock-free queue size
+export MEMORY_POOL_SIZE=1024 # Memory pool size
+```
+
+#### Configuration File
+Create `config.ini`:
+```ini
+[database]
+connection_string = postgresql://stock_user:password@localhost/stock_exchange
+sync_interval_seconds = 30
+
+[redis]
+host = localhost
+port = 6379
+password =
+
+[grpc]
+port = 50051
+host = 0.0.0.0
+
+[tcp]
+port = 8080
+host = 0.0.0.0
+
+[performance]
+cpu_cores = 1,2,3,4
+queue_size = 4096
+memory_pool_size = 1024
+```
+
+## Running the System
+
+### 1. Start Database Services
+```bash
+# PostgreSQL
+sudo systemctl start postgresql
+
+# Redis
+sudo systemctl start redis
+```
+
+
+### 2. Start the Engine
+```bash
+# From build directory
+cd build
+
+# Start the main engine
+./stock_engine
+
+
+```
+
+
+
 ### Glossary
 
 - **FIFO**: First In, First Out - order matching priority
@@ -1435,5 +1695,5 @@ Copyright © 2026 Ayon Sarkar. Project developed for research and portfolio demo
 ---
 
 **Document Version**: 1.0  
-**Last Updated**: January 17, 2026  
+**Last Updated**: January 19, 2026  
 **Authors**: Architected & Developed by Ayon Sarkar
