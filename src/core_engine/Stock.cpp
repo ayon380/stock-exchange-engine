@@ -79,22 +79,16 @@ void Stock::stop() {
     
     ENGINE_LOG_DEV(std::cout << "[" << symbol_ << "] Stopping threads..." << std::flush;);
     
-    // Join threads with timeout protection to prevent indefinite hangs
-    auto joinWithTimeout = [](std::thread& t, const char* name, int timeout_ms) {
+    auto joinThread = [](std::thread& t, const char* name) {
         if (t.joinable()) {
             ENGINE_LOG_DEV(std::cout << " " << name << std::flush;);
-            auto future = std::async(std::launch::async, [&t]() { t.join(); });
-            if (future.wait_for(std::chrono::milliseconds(timeout_ms)) == std::future_status::timeout) {
-                std::cerr << "\nWarning: " << name << " thread timeout, detaching" << std::endl;
-                t.detach();
-            }
+            t.join();
         }
     };
     
-    // Increased timeout to 500ms per thread to handle heavy load
-    joinWithTimeout(matching_thread_, "matching", 500);
-    joinWithTimeout(market_data_thread_, "md", 500);
-    joinWithTimeout(trade_publisher_thread_, "trade", 500);
+    joinThread(matching_thread_, "matching");
+    joinThread(market_data_thread_, "md");
+    joinThread(trade_publisher_thread_, "trade");
     
     ENGINE_LOG_DEV(std::cout << " done" << std::endl;);
 }
@@ -193,9 +187,22 @@ std::string Stock::submitOrder(const Order& order) {
     bool reservation_acquired = false;
     Price reservation_price = order.price;
     if (order.type == 0) {
-        reservation_price = last_price_.load(std::memory_order_relaxed);
-        if (reservation_price <= 0) {
-            reservation_price = (order.price > 0) ? order.price : Order::fromDouble(1.0);
+        Price base_price = last_price_.load(std::memory_order_relaxed);
+        if (base_price <= 0) {
+            base_price = (order.price > 0) ? order.price : Order::fromDouble(1.0);
+        }
+
+        if (order.side == 0) {
+            // Buy market orders reserve at worst-case price within protection band
+            reservation_price = static_cast<Price>(base_price * (1.0 + MAX_MARKET_ORDER_DEVIATION));
+        } else {
+            reservation_price = base_price;
+        }
+    }
+
+    if (order.type == 0 && order.side == 0) {
+        if (reservation_price <= 0 || order.quantity > INT64_MAX / reservation_price) {
+            return "rejected: order value too large (overflow risk)";
         }
     }
     std::string reservation_error;
@@ -412,11 +419,13 @@ void Stock::tradePublisherWorker() {
             trades_executed_.fetch_add(1, std::memory_order_relaxed);
             
             // Notify trade observer (e.g., for account settlement)
+            TradeCallback callback_copy;
             {
                 std::lock_guard<std::mutex> lock(trade_callback_mutex_);
-                if (trade_callback_) {
-                    trade_callback_(msg->trade);
-                }
+                callback_copy = trade_callback_;
+            }
+            if (callback_copy) {
+                callback_copy(msg->trade);
             }
             
             trade_message_pool_.deallocate(msg);
@@ -434,6 +443,43 @@ void Stock::tradePublisherWorker() {
 }
 
 void Stock::processNewOrder(const Order& incoming_order) {
+    // If a cancel is already pending or processed for this order, honor it immediately
+    bool cancel_pending = false;
+    bool already_cancelled = false;
+    {
+        std::lock_guard<std::mutex> lock(order_status_mutex_);
+        auto it = order_status_cache_.find(incoming_order.order_id);
+        if (it != order_status_cache_.end()) {
+            if (it->second.status == "cancel_pending" || it->second.status == "cancelled") {
+                Order cancelled = incoming_order;
+                cancelled.status = "cancelled";
+                cancelled.remaining_qty = 0;
+                order_status_cache_[incoming_order.order_id] = cancelled;
+                cancel_pending = (it->second.status == "cancel_pending");
+                already_cancelled = (it->second.status == "cancelled");
+            }
+        }
+    }
+
+    if (cancel_pending || already_cancelled) {
+        if (release_callback_) {
+            release_callback_(incoming_order, "cancelled");
+        }
+
+        OrderStatusCallback callback_copy;
+        {
+            std::lock_guard<std::mutex> cb_lock(order_status_callback_mutex_);
+            callback_copy = order_status_callback_;
+        }
+        if (callback_copy) {
+            Order cancelled = incoming_order;
+            cancelled.status = "cancelled";
+            cancelled.remaining_qty = 0;
+            callback_copy(cancelled);
+        }
+        return;
+    }
+
     // Check order book depth limits
     size_t current_buys = total_buy_orders_.load(std::memory_order_relaxed);
     size_t current_sells = total_sell_orders_.load(std::memory_order_relaxed);
@@ -572,6 +618,14 @@ void Stock::processNewOrder(const Order& incoming_order) {
             if (release_reason.empty()) {
                 release_reason = release_snapshot.status;
             }
+            OrderStatusCallback callback_copy;
+            {
+                std::lock_guard<std::mutex> cb_lock(order_status_callback_mutex_);
+                callback_copy = order_status_callback_;
+            }
+            if (callback_copy) {
+                callback_copy(release_snapshot);
+            }
             orders_.erase(order->order_id);
             if (release_callback_) {
                 release_callback_(release_snapshot, release_reason);
@@ -583,15 +637,19 @@ void Stock::processNewOrder(const Order& incoming_order) {
     
     // Update order status cache after matching (only if order still exists)
     if (order != nullptr) {
-        std::lock_guard<std::mutex> lock(order_status_mutex_);
-        order_status_cache_[order->order_id] = *order;
-        
+        {
+            std::lock_guard<std::mutex> lock(order_status_mutex_);
+            order_status_cache_[order->order_id] = *order;
+        }
+
         // SEC Compliance: Notify about order status change for persistence
-        if (order_status_callback_) {
+        OrderStatusCallback callback_copy;
+        {
             std::lock_guard<std::mutex> cb_lock(order_status_callback_mutex_);
-            if (order_status_callback_) {
-                order_status_callback_(*order);
-            }
+            callback_copy = order_status_callback_;
+        }
+        if (callback_copy) {
+            callback_copy(*order);
         }
     }
     
@@ -638,9 +696,46 @@ void Stock::processCancelOrder(const std::string& order_id) {
         if (release_callback_) {
             release_callback_(*order, "cancelled");
         }
+
+        OrderStatusCallback callback_copy;
+        {
+            std::lock_guard<std::mutex> cb_lock(order_status_callback_mutex_);
+            callback_copy = order_status_callback_;
+        }
+        if (callback_copy) {
+            callback_copy(*order);
+        }
         
         orders_.erase(it);
         order_pool_.deallocate(order);
+    } else {
+        // If order hasn't reached the book yet, mark it cancelled in cache
+        Order cancelled_snapshot;
+        bool has_snapshot = false;
+        {
+            std::lock_guard<std::mutex> lock(order_status_mutex_);
+            auto status_it = order_status_cache_.find(order_id);
+            if (status_it != order_status_cache_.end()) {
+                status_it->second.status = "cancelled";
+                status_it->second.remaining_qty = 0;
+                cancelled_snapshot = status_it->second;
+                has_snapshot = true;
+            }
+        }
+
+        if (has_snapshot) {
+            if (release_callback_) {
+                release_callback_(cancelled_snapshot, "cancelled");
+            }
+            OrderStatusCallback callback_copy;
+            {
+                std::lock_guard<std::mutex> cb_lock(order_status_callback_mutex_);
+                callback_copy = order_status_callback_;
+            }
+            if (callback_copy) {
+                callback_copy(cancelled_snapshot);
+            }
+        }
     }
 }
 
@@ -700,7 +795,9 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
     
     if (incoming_order->side == 0) { // BUY order
         // Match against sell orders (asks)
-        while (incoming_order->remaining_qty > 0 && best_ask_) {
+        PriceLevelNode* prev_level = nullptr;
+        PriceLevelNode* level = best_ask_;
+        while (incoming_order->remaining_qty > 0 && level) {
             // For LIMIT and IOC orders, check price constraint
             // For MARKET orders (type == 0), match at any price BUT with protection
             if (incoming_order->type == 0) {
@@ -708,24 +805,29 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
                 Price current_price = last_price_.load(std::memory_order_relaxed);
                 if (current_price > 0) {
                     Price max_buy_price = static_cast<Price>(current_price * (1.0 + MAX_MARKET_ORDER_DEVIATION));
-                    if (best_ask_->price > max_buy_price) {
+                    if (level->price > max_buy_price) {
                         // Price too high, stop matching and cancel unfilled portion
                         incoming_order->status = "cancelled";
                         incoming_order->remaining_qty = 0;
                         break;
                     }
                 }
-            } else if (incoming_order->price < best_ask_->price) {
+            } else if (incoming_order->price < level->price) {
                 break; // No more matches possible for LIMIT orders
             }
             
-            PriceLevelNode* ask_level = best_ask_;
-            Order* sell_order = ask_level->first_order;
+            Order* sell_order = level->first_order;
             
             if (!sell_order || sell_order->remaining_qty == 0) {
                 // Remove empty level
-                best_ask_ = ask_level->next_level;
-                price_level_pool_.deallocate(ask_level);
+                PriceLevelNode* next_level = level->next_level;
+                if (prev_level) {
+                    prev_level->next_level = next_level;
+                } else {
+                    best_ask_ = next_level;
+                }
+                price_level_pool_.deallocate(level);
+                level = next_level;
                 continue;
             }
             
@@ -735,40 +837,48 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
                 sell_order = sell_order->next_at_price;
             }
             
-            // CRITICAL FIX: If all orders at this level are from the same user, we must properly
-            // clean up the level instead of just skipping it. Otherwise, those orders become
-            // unreachable and the price level leaks memory.
             if (!sell_order) {
-                // All orders at this level belong to the incoming user - skip entire level
-                PriceLevelNode* level_to_skip = ask_level;
-                best_ask_ = ask_level->next_level;
-                
-                // Cancel all orders at this level (they're all from the same user)
-                Order* order_at_level = level_to_skip->first_order;
+                // All orders at this level belong to the incoming user - cancel and remove level
+                PriceLevelNode* level_to_cancel = level;
+                PriceLevelNode* next_level = level->next_level;
+
+                Order* order_at_level = level_to_cancel->first_order;
                 while (order_at_level) {
                     Order* next_order = order_at_level->next_at_price;
-                    
-                    // Mark as cancelled and update cache
+
                     order_at_level->status = "cancelled";
                     order_at_level->remaining_qty = 0;
                     {
                         std::lock_guard<std::mutex> lock(order_status_mutex_);
                         order_status_cache_[order_at_level->order_id] = *order_at_level;
                     }
+                    OrderStatusCallback callback_copy;
+                    {
+                        std::lock_guard<std::mutex> cb_lock(order_status_callback_mutex_);
+                        callback_copy = order_status_callback_;
+                    }
+                    if (callback_copy) {
+                        callback_copy(*order_at_level);
+                    }
                     if (release_callback_) {
                         release_callback_(*order_at_level, "cancelled");
                     }
-                    // Clean up
+
                     orders_.erase(order_at_level->order_id);
                     total_sell_orders_.fetch_sub(1, std::memory_order_relaxed);
-                    order_at_level->price_level = nullptr;  // Prevent use-after-free
+                    order_at_level->price_level = nullptr;
                     order_pool_.deallocate(order_at_level);
-                    
+
                     order_at_level = next_order;
                 }
-                
-                // Deallocate the empty level
-                price_level_pool_.deallocate(level_to_skip);
+
+                if (prev_level) {
+                    prev_level->next_level = next_level;
+                } else {
+                    best_ask_ = next_level;
+                }
+                price_level_pool_.deallocate(level_to_cancel);
+                level = next_level;
                 continue;
             }
             
@@ -792,7 +902,7 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
             // Update orders
             incoming_order->remaining_qty -= trade_qty;
             sell_order->remaining_qty -= trade_qty;
-            ask_level->total_quantity -= trade_qty;
+            level->total_quantity -= trade_qty;
             
             if (incoming_order->remaining_qty == 0) {
                 incoming_order->status = "filled";
@@ -805,7 +915,7 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
                 
                 // CRITICAL FIX: Use removeOrder to properly unlink from the price level
                 // This handles all the pointer updates (first_order, last_order, prev/next)
-                ask_level->removeOrder(sell_order);
+                level->removeOrder(sell_order);
                 
                 // CRITICAL FIX: Decrement counter and clean up filled order
                 total_sell_orders_.fetch_sub(1, std::memory_order_relaxed);
@@ -814,6 +924,14 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
                 {
                     std::lock_guard<std::mutex> lock(order_status_mutex_);
                     order_status_cache_[sell_order->order_id] = *sell_order;
+                }
+                OrderStatusCallback callback_copy;
+                {
+                    std::lock_guard<std::mutex> cb_lock(order_status_callback_mutex_);
+                    callback_copy = order_status_callback_;
+                }
+                if (callback_copy) {
+                    callback_copy(*sell_order);
                 }
                 if (release_callback_) {
                     release_callback_(*sell_order, sell_order->status);
@@ -830,11 +948,41 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
                     std::lock_guard<std::mutex> lock(order_status_mutex_);
                     order_status_cache_[sell_order->order_id] = *sell_order;
                 }
+                OrderStatusCallback callback_copy;
+                {
+                    std::lock_guard<std::mutex> cb_lock(order_status_callback_mutex_);
+                    callback_copy = order_status_callback_;
+                }
+                if (callback_copy) {
+                    callback_copy(*sell_order);
+                }
             }
+
+            if (level->total_quantity == 0 && level->first_order == nullptr) {
+                PriceLevelNode* next_level = level->next_level;
+                if (prev_level) {
+                    prev_level->next_level = next_level;
+                } else {
+                    best_ask_ = next_level;
+                }
+                price_level_pool_.deallocate(level);
+                level = next_level;
+                continue;
+            }
+
+            if (incoming_order->remaining_qty > 0) {
+                // Keep matching at the same price level
+                continue;
+            }
+
+            prev_level = level;
+            level = level->next_level;
         }
     } else { // SELL order
         // Match against buy orders (bids)
-        while (incoming_order->remaining_qty > 0 && best_bid_) {
+        PriceLevelNode* prev_level = nullptr;
+        PriceLevelNode* level = best_bid_;
+        while (incoming_order->remaining_qty > 0 && level) {
             // For LIMIT and IOC orders, check price constraint
             // For MARKET orders (type == 0), match at any price BUT with protection
             if (incoming_order->type == 0) {
@@ -842,24 +990,29 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
                 Price current_price = last_price_.load(std::memory_order_relaxed);
                 if (current_price > 0) {
                     Price min_sell_price = static_cast<Price>(current_price * (1.0 - MAX_MARKET_ORDER_DEVIATION));
-                    if (best_bid_->price < min_sell_price) {
+                    if (level->price < min_sell_price) {
                         // Price too low, stop matching and cancel unfilled portion
                         incoming_order->status = "cancelled";
                         incoming_order->remaining_qty = 0;
                         break;
                     }
                 }
-            } else if (incoming_order->price > best_bid_->price) {
+            } else if (incoming_order->price > level->price) {
                 break; // No more matches possible for LIMIT orders
             }
             
-            PriceLevelNode* bid_level = best_bid_;
-            Order* buy_order = bid_level->first_order;
+            Order* buy_order = level->first_order;
             
             if (!buy_order || buy_order->remaining_qty == 0) {
                 // Remove empty level
-                best_bid_ = bid_level->next_level;
-                price_level_pool_.deallocate(bid_level);
+                PriceLevelNode* next_level = level->next_level;
+                if (prev_level) {
+                    prev_level->next_level = next_level;
+                } else {
+                    best_bid_ = next_level;
+                }
+                price_level_pool_.deallocate(level);
+                level = next_level;
                 continue;
             }
             
@@ -869,41 +1022,48 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
                 buy_order = buy_order->next_at_price;
             }
             
-            // CRITICAL FIX: If all orders at this level are from the same user, we must properly
-            // clean up the level instead of just skipping it. Otherwise, those orders become
-            // unreachable and the price level leaks memory.
             if (!buy_order) {
-                // All orders at this level belong to the incoming user - skip entire level
-                PriceLevelNode* level_to_skip = bid_level;
-                best_bid_ = bid_level->next_level;
-                
-                // Cancel all orders at this level (they're all from the same user)
-                Order* order_at_level = level_to_skip->first_order;
+                // All orders at this level belong to the incoming user - cancel and remove level
+                PriceLevelNode* level_to_cancel = level;
+                PriceLevelNode* next_level = level->next_level;
+
+                Order* order_at_level = level_to_cancel->first_order;
                 while (order_at_level) {
                     Order* next_order = order_at_level->next_at_price;
-                    
-                    // Mark as cancelled and update cache
+
                     order_at_level->status = "cancelled";
                     order_at_level->remaining_qty = 0;
                     {
                         std::lock_guard<std::mutex> lock(order_status_mutex_);
                         order_status_cache_[order_at_level->order_id] = *order_at_level;
                     }
+                    OrderStatusCallback callback_copy;
+                    {
+                        std::lock_guard<std::mutex> cb_lock(order_status_callback_mutex_);
+                        callback_copy = order_status_callback_;
+                    }
+                    if (callback_copy) {
+                        callback_copy(*order_at_level);
+                    }
                     if (release_callback_) {
                         release_callback_(*order_at_level, "cancelled");
                     }
-                    
-                    // Clean up
+
                     orders_.erase(order_at_level->order_id);
                     total_buy_orders_.fetch_sub(1, std::memory_order_relaxed);
-                    order_at_level->price_level = nullptr;  // Prevent use-after-free
+                    order_at_level->price_level = nullptr;
                     order_pool_.deallocate(order_at_level);
-                    
+
                     order_at_level = next_order;
                 }
-                
-                // Deallocate the empty level
-                price_level_pool_.deallocate(level_to_skip);
+
+                if (prev_level) {
+                    prev_level->next_level = next_level;
+                } else {
+                    best_bid_ = next_level;
+                }
+                price_level_pool_.deallocate(level_to_cancel);
+                level = next_level;
                 continue;
             }
             
@@ -927,7 +1087,7 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
             // Update orders
             incoming_order->remaining_qty -= trade_qty;
             buy_order->remaining_qty -= trade_qty;
-            bid_level->total_quantity -= trade_qty;
+            level->total_quantity -= trade_qty;
             
             if (incoming_order->remaining_qty == 0) {
                 incoming_order->status = "filled";
@@ -940,7 +1100,7 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
                 
                 // CRITICAL FIX: Use removeOrder to properly unlink from the price level
                 // This handles all the pointer updates (first_order, last_order, prev/next)
-                bid_level->removeOrder(buy_order);
+                level->removeOrder(buy_order);
                 
                 // CRITICAL FIX: Decrement counter and clean up filled order
                 total_buy_orders_.fetch_sub(1, std::memory_order_relaxed);
@@ -949,6 +1109,14 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
                 {
                     std::lock_guard<std::mutex> lock(order_status_mutex_);
                     order_status_cache_[buy_order->order_id] = *buy_order;
+                }
+                OrderStatusCallback callback_copy;
+                {
+                    std::lock_guard<std::mutex> cb_lock(order_status_callback_mutex_);
+                    callback_copy = order_status_callback_;
+                }
+                if (callback_copy) {
+                    callback_copy(*buy_order);
                 }
                 if (release_callback_) {
                     release_callback_(*buy_order, buy_order->status);
@@ -965,7 +1133,35 @@ std::vector<Trade> Stock::matchOrder(Order* incoming_order) {
                     std::lock_guard<std::mutex> lock(order_status_mutex_);
                     order_status_cache_[buy_order->order_id] = *buy_order;
                 }
+                OrderStatusCallback callback_copy;
+                {
+                    std::lock_guard<std::mutex> cb_lock(order_status_callback_mutex_);
+                    callback_copy = order_status_callback_;
+                }
+                if (callback_copy) {
+                    callback_copy(*buy_order);
+                }
             }
+
+            if (level->total_quantity == 0 && level->first_order == nullptr) {
+                PriceLevelNode* next_level = level->next_level;
+                if (prev_level) {
+                    prev_level->next_level = next_level;
+                } else {
+                    best_bid_ = next_level;
+                }
+                price_level_pool_.deallocate(level);
+                level = next_level;
+                continue;
+            }
+
+            if (incoming_order->remaining_qty > 0) {
+                // Keep matching at the same price level
+                continue;
+            }
+
+            prev_level = level;
+            level = level->next_level;
         }
     }
     

@@ -88,12 +88,23 @@ public:
     // Deallocate object back to pool
     void deallocate(T* ptr) {
         if (!ptr) return;
-        
+
+        // Fast range check before any pointer arithmetic to avoid UB
+        const uintptr_t pool_start = reinterpret_cast<uintptr_t>(pool_.get());
+        const uintptr_t pool_end = reinterpret_cast<uintptr_t>(pool_.get() + pool_size_);
+        const uintptr_t p = reinterpret_cast<uintptr_t>(ptr);
+
+        if (p < pool_start || p >= pool_end) {
+            // Was allocated outside pool, use regular delete
+            delete ptr;
+            return;
+        }
+
         // Calculate the Block* from T* (ptr points to the data member in the union)
         Block* block = reinterpret_cast<Block*>(
             reinterpret_cast<char*>(ptr) - offsetof(Block, data)
         );
-        
+
         // Check if pointer is within our pool range
         if (block >= pool_.get() && block < pool_.get() + pool_size_) {
             // Call destructor
@@ -108,9 +119,6 @@ public:
                                                      std::memory_order_acquire));
             
             allocated_count_.fetch_sub(1, std::memory_order_relaxed);
-        } else {
-            // Was allocated outside pool, use regular delete
-            delete ptr;
         }
     }
     

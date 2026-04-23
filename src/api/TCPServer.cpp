@@ -26,6 +26,7 @@
 #include <fstream>
 #include <mutex>
 #include <sstream>
+#include <cmath>
 #include "AuthenticationManager.h"
 
 // CPU frequency calibration for RDTSC timing
@@ -264,22 +265,34 @@ void TCPConnection::processMessage(const std::vector<char>& data) {
         
         switch (msg_type) {
             case MessageType::LOGIN_REQUEST:
+                if (!auth_manager_) {
+                    std::cerr << "TCP Connection: Auth manager not configured; rejecting login" << std::endl;
+                    stop();
+                    return;
+                }
                 processLoginRequest(data);
             break;
             
         case MessageType::SUBMIT_ORDER:
             // Check if user is authenticated first
+            if (!auth_manager_) {
+                std::cerr << "TCP Connection: Auth manager not configured; order rejected" << std::endl;
+                stop();
+                return;
+            }
             if (!auth_manager_->isAuthenticated(connection_id_)) {
                 std::cerr << "TCP Connection: Order received from unauthenticated connection " << connection_id_ << std::endl;
                 // Send rejection response
-                std::vector<char> response(sizeof(BinaryOrderResponse) + 20);
+                const char* msg = "Not authenticated";
+                const size_t msg_len = std::strlen(msg);
+                std::vector<char> response(sizeof(BinaryOrderResponse) + msg_len);
                 BinaryOrderResponse* resp = reinterpret_cast<BinaryOrderResponse*>(response.data());
-                resp->message_length = htonl(sizeof(BinaryOrderResponse) + 20);
+                resp->message_length = htonl(sizeof(BinaryOrderResponse) + msg_len);
                 resp->type = MessageType::ORDER_RESPONSE;
                 resp->order_id_len = htonl(0);
                 resp->accepted = 0;
-                resp->message_len = htonl(20);
-                std::memcpy(response.data() + sizeof(BinaryOrderResponse), "Not authenticated", 17);
+                resp->message_len = htonl(msg_len);
+                std::memcpy(response.data() + sizeof(BinaryOrderResponse), msg, msg_len);
                 sendResponse(response);
                 return;
             }
@@ -288,6 +301,10 @@ void TCPConnection::processMessage(const std::vector<char>& data) {
             
         case MessageType::HEARTBEAT:
             // Update last activity and send heartbeat ack
+            if (!auth_manager_) {
+                std::cerr << "TCP Connection: Auth manager not configured; heartbeat ignored" << std::endl;
+                return;
+            }
             auth_manager_->updateLastActivity(connection_id_);
             {
                 std::vector<char> response(sizeof(BinaryOrderResponse) + 1);
@@ -403,6 +420,11 @@ void TCPConnection::handleError(const boost::system::error_code& error) {
 
 void TCPConnection::processLoginRequest(const std::vector<char>& data) {
     try {
+        if (!auth_manager_) {
+            std::cerr << "TCP Connection: Auth manager not configured; login rejected" << std::endl;
+            stop();
+            return;
+        }
         if (data.size() < sizeof(BinaryLoginRequestBody)) {
             std::cerr << "TCP Connection: Login message too small" << std::endl;
             return;
@@ -484,6 +506,10 @@ void TCPConnection::processLoginRequest(const std::vector<char>& data) {
 
 void TCPConnection::processOrderRequest(const std::vector<char>& data) {
     try {
+        if (!auth_manager_) {
+            std::cerr << "TCP Connection: Auth manager not configured; order rejected" << std::endl;
+            return;
+        }
         // Sample metrics every 1000 orders to minimize overhead
         static std::atomic<uint64_t> metrics_counter{0};
         uint64_t current_count = metrics_counter.fetch_add(1, std::memory_order_relaxed);
@@ -542,11 +568,45 @@ void TCPConnection::processOrderRequest(const std::vector<char>& data) {
     double correct_price;
     std::memcpy(&correct_price, &host_price_bits, sizeof(double));
 
+    if (!std::isfinite(correct_price) || correct_price < 0.0) {
+        std::cerr << "TCP Connection: Invalid price received" << std::endl;
+        return;
+    }
+
     int64_t quantity = static_cast<int64_t>(ntohll(request->quantity));
+    if (quantity <= 0) {
+        std::cerr << "TCP Connection: Invalid quantity received" << std::endl;
+        return;
+    }
     
     // Check buying power using AuthenticationManager
     if (request->side == 0) { // BUY order
-        CashAmount required_cash = quantity * static_cast<CashAmount>(correct_price * 100.0 + 0.5);
+        CashAmount price_cents = static_cast<CashAmount>(correct_price * 100.0 + 0.5);
+        __int128 required_cash_wide = static_cast<__int128>(quantity) * static_cast<__int128>(price_cents);
+        if (required_cash_wide > std::numeric_limits<CashAmount>::max()) {
+            std::string message = "Order value too large";
+
+            size_t response_size = sizeof(BinaryOrderResponse) + order_id.size() + message.size();
+            std::vector<char> response(response_size);
+
+            BinaryOrderResponse* resp = reinterpret_cast<BinaryOrderResponse*>(response.data());
+            resp->message_length = htonl(response_size);
+            resp->type = MessageType::ORDER_RESPONSE;
+            resp->order_id_len = htonl(order_id.size());
+            resp->accepted = 0;
+            resp->message_len = htonl(message.size());
+
+            // Copy strings
+            char* string_data = response.data() + sizeof(BinaryOrderResponse);
+            std::memcpy(string_data, order_id.data(), order_id.size());
+            string_data += order_id.size();
+            std::memcpy(string_data, message.data(), message.size());
+
+            sendResponse(response);
+            return;
+        }
+
+        CashAmount required_cash = static_cast<CashAmount>(required_cash_wide);
         if (!auth_manager_->checkBuyingPower(authenticated_user_id, required_cash)) {
             std::string message = "Insufficient buying power";
             

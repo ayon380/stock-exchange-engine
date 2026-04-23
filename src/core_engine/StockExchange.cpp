@@ -181,16 +181,10 @@ void StockExchange::stop() {
     }
     std::cout << "✓ All " << stopped << " stock threads stopped" << std::endl;
     
-    // Stop index thread with timeout
+    // Stop index thread
     std::cout << "✓ Stopping index thread..." << std::flush;
     if (index_thread_.joinable()) {
-        auto future = std::async(std::launch::async, [this]() {
-            index_thread_.join();
-        });
-        if (future.wait_for(std::chrono::milliseconds(200)) == std::future_status::timeout) {
-            std::cerr << "Warning: index thread timeout, detaching" << std::endl;
-            index_thread_.detach();
-        }
+        index_thread_.join();
     }
     std::cout << " done" << std::endl;
     
@@ -201,13 +195,7 @@ void StockExchange::stop() {
     }
     
     if (db_sync_thread_.joinable()) {
-        auto future = std::async(std::launch::async, [this]() {
-            db_sync_thread_.join();
-        });
-        if (future.wait_for(std::chrono::milliseconds(200)) == std::future_status::timeout) {
-            std::cerr << "Warning: db_sync thread timeout, detaching" << std::endl;
-            db_sync_thread_.detach();
-        }
+        db_sync_thread_.join();
     }
     std::cout << " done" << std::endl;
     

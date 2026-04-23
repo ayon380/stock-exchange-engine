@@ -332,8 +332,9 @@ void SharedMemoryOrderServer::stop() {
         });
         
         if (future.wait_for(std::chrono::milliseconds(200)) == std::future_status::timeout) {
-            std::cerr << "Warning: SharedMemory worker thread timeout, detaching" << std::endl;
-            worker_thread_.detach();
+            std::cerr << "Warning: SharedMemory worker thread timeout, waiting for clean exit" << std::endl;
+            // Avoid detach to prevent use-after-free; wait for clean exit.
+            worker_thread_.join();
         }
     }
 
@@ -341,7 +342,12 @@ void SharedMemoryOrderServer::stop() {
 }
 
 void SharedMemoryOrderServer::processOrders() {
-    std::vector<char> buffer(1024); // 1KB buffer
+    if (message_size_ == 0) {
+        std::cerr << "SharedMemory: message size is zero; cannot process orders" << std::endl;
+        return;
+    }
+
+    std::vector<char> buffer(message_size_);
 
     while (running_.load()) {
         size_t message_size = 0;

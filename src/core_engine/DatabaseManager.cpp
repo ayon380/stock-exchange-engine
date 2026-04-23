@@ -14,6 +14,7 @@
 #include <functional>
 #include <iostream>
 #include <sstream>
+#include <pqxx/params>
 
 DatabaseManager::DatabaseManager(const std::string &connection_string,
                                  std::chrono::seconds sync_interval,
@@ -24,6 +25,34 @@ DatabaseManager::DatabaseManager(const std::string &connection_string,
 DatabaseManager::~DatabaseManager() {
   stopBackgroundSync();
   disconnect();
+}
+
+void DatabaseManager::appendSpilloverOrder(const PersistenceEntry &entry) {
+  std::lock_guard<std::mutex> lock(spillover_mutex_);
+  if (!spillover_file_.is_open()) {
+    spillover_file_.open("persistence_spillover.log", std::ios::app);
+  }
+
+  spillover_file_ << "ORDER|" << entry.order_id << "|" << entry.user_id << "|"
+                  << entry.symbol << "|" << entry.side << "|"
+                  << entry.order_type << "|" << entry.quantity << "|"
+                  << entry.price << "|" << entry.status << "|"
+                  << entry.timestamp_ms << "\n";
+  spillover_file_.flush();
+}
+
+void DatabaseManager::appendSpilloverTrade(const PersistenceEntry &entry) {
+  std::lock_guard<std::mutex> lock(spillover_mutex_);
+  if (!spillover_file_.is_open()) {
+    spillover_file_.open("persistence_spillover.log", std::ios::app);
+  }
+
+  spillover_file_ << "TRADE|" << entry.buy_order_id << "|"
+                  << entry.sell_order_id << "|" << entry.symbol << "|"
+                  << entry.price << "|" << entry.quantity << "|"
+                  << entry.buyer_id << "|" << entry.seller_id << "|"
+                  << entry.timestamp_ms << "\n";
+  spillover_file_.flush();
 }
 
 bool DatabaseManager::connect() {
@@ -53,6 +82,9 @@ bool DatabaseManager::connect() {
 }
 
 void DatabaseManager::disconnect() {
+  if (connection_pool_) {
+    connection_pool_->shutdown();
+  }
   connection_pool_.reset();
   ENGINE_LOG_DEV(std::cout << "Database connection pool closed" << std::endl;);
 }
@@ -295,16 +327,16 @@ bool DatabaseManager::saveStockData(const StockData &data) {
     ScopedConnection conn(*connection_pool_);
     pqxx::work txn(conn.get());
 
-    txn.exec_params(R"(
+    txn.exec(R"(
             INSERT INTO stocks (symbol, last_price, open_price, volume, timestamp_ms)
             VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (symbol, timestamp_ms) DO UPDATE SET
                 last_price = EXCLUDED.last_price,
                 open_price = EXCLUDED.open_price,
                 volume = EXCLUDED.volume
-        )",
-                    data.symbol, data.lastPriceToDouble(),
-                    data.openPriceToDouble(), data.volume, data.timestamp_ms);
+      )",
+      pqxx::params{data.symbol, data.lastPriceToDouble(),
+             data.openPriceToDouble(), data.volume, data.timestamp_ms});
 
     txn.commit();
     return true;
@@ -321,16 +353,16 @@ bool DatabaseManager::saveStockDataBatch(
     pqxx::work txn(conn.get());
 
     for (const auto &data : data_batch) {
-      txn.exec_params(R"(
+      txn.exec(R"(
                 INSERT INTO stocks (symbol, last_price, open_price, volume, timestamp_ms)
                 VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (symbol, timestamp_ms) DO UPDATE SET
                     last_price = EXCLUDED.last_price,
                     open_price = EXCLUDED.open_price,
                     volume = EXCLUDED.volume
-            )",
-                      data.symbol, data.lastPriceToDouble(),
-                      data.openPriceToDouble(), data.volume, data.timestamp_ms);
+        )",
+          pqxx::params{data.symbol, data.lastPriceToDouble(),
+               data.openPriceToDouble(), data.volume, data.timestamp_ms});
     }
 
     txn.commit();
@@ -381,14 +413,14 @@ StockData DatabaseManager::getLatestStockData(const std::string &symbol) {
     ScopedConnection conn(*connection_pool_);
     pqxx::work txn(conn.get());
 
-    auto res = txn.exec_params(R"(
+    auto res = txn.exec(R"(
             SELECT symbol, last_price, open_price, volume, timestamp_ms
             FROM stocks 
             WHERE symbol = $1 
             ORDER BY timestamp_ms DESC 
             LIMIT 1
-        )",
-                               symbol);
+      )",
+      pqxx::params{symbol});
 
     if (!res.empty()) {
       const auto &row = res[0];
@@ -433,8 +465,26 @@ bool DatabaseManager::persistOrder(const std::string &order_id,
                                    int type, int64_t quantity, Price price,
                                    const std::string &status,
                                    int64_t timestamp_ms) {
-  if (!connection_pool_)
-    return false;
+  if (!connection_pool_) {
+    PersistenceEntry entry;
+    entry.type = PersistenceType::ORDER;
+    std::strncpy(entry.order_id, order_id.c_str(), sizeof(entry.order_id) - 1);
+    entry.order_id[sizeof(entry.order_id) - 1] = '\0';
+    std::strncpy(entry.user_id, user_id.c_str(), sizeof(entry.user_id) - 1);
+    entry.user_id[sizeof(entry.user_id) - 1] = '\0';
+    std::strncpy(entry.symbol, symbol.c_str(), sizeof(entry.symbol) - 1);
+    entry.symbol[sizeof(entry.symbol) - 1] = '\0';
+    entry.side = side;
+    entry.order_type = type;
+    entry.quantity = quantity;
+    entry.price = price;
+    std::strncpy(entry.status, status.c_str(), sizeof(entry.status) - 1);
+    entry.status[sizeof(entry.status) - 1] = '\0';
+    entry.timestamp_ms = timestamp_ms;
+
+    appendSpilloverOrder(entry);
+    return true;
+  }
 
   // Allocate event from pool
   auto entry = persistence_pool_.allocate();
@@ -458,17 +508,9 @@ bool DatabaseManager::persistOrder(const std::string &order_id,
   entry->timestamp_ms = timestamp_ms;
 
   // Enqueue for background processing
-  if (!persistence_queue_.enqueue(entry)) {
-    // Fallback NO LONGER BLOCKS
-    // If queue is full, we must drop the event rather than blocking the
-    // matching engine In a real production system, this would go to a separate
-    // high-speed "spillover" log file or ring buffer on another thread.
-    std::cerr << "[CRITICAL] Persistence queue full - DROPPING order "
-              << order_id << " to prevent engine stall" << std::endl;
-
-    // We still return true to the caller so they don't think the order failed
-    // validation. The order is in memory and processed, just not persisted to
-    // DB yet.
+  if (!persistence_queue_.try_enqueue(entry)) {
+    // Spillover to disk to avoid data loss
+    appendSpilloverOrder(*entry);
     persistence_pool_.deallocate(entry);
   }
 
@@ -483,8 +525,29 @@ bool DatabaseManager::persistTrade(const std::string &buy_order_id,
                                    const std::string &buyer_id,
                                    const std::string &seller_id,
                                    int64_t timestamp_ms) {
-  if (!connection_pool_)
-    return false;
+  if (!connection_pool_) {
+    PersistenceEntry entry;
+    entry.type = PersistenceType::TRADE;
+    std::strncpy(entry.buy_order_id, buy_order_id.c_str(),
+                 sizeof(entry.buy_order_id) - 1);
+    entry.buy_order_id[sizeof(entry.buy_order_id) - 1] = '\0';
+    std::strncpy(entry.sell_order_id, sell_order_id.c_str(),
+                 sizeof(entry.sell_order_id) - 1);
+    entry.sell_order_id[sizeof(entry.sell_order_id) - 1] = '\0';
+    std::strncpy(entry.symbol, symbol.c_str(), sizeof(entry.symbol) - 1);
+    entry.symbol[sizeof(entry.symbol) - 1] = '\0';
+    entry.price = price;
+    entry.quantity = quantity;
+    std::strncpy(entry.buyer_id, buyer_id.c_str(), sizeof(entry.buyer_id) - 1);
+    entry.buyer_id[sizeof(entry.buyer_id) - 1] = '\0';
+    std::strncpy(entry.seller_id, seller_id.c_str(),
+                 sizeof(entry.seller_id) - 1);
+    entry.seller_id[sizeof(entry.seller_id) - 1] = '\0';
+    entry.timestamp_ms = timestamp_ms;
+
+    appendSpilloverTrade(entry);
+    return true;
+  }
 
   auto entry = persistence_pool_.allocate();
   if (!entry)
@@ -512,11 +575,9 @@ bool DatabaseManager::persistTrade(const std::string &buy_order_id,
       '\0'; // Ensure null termination
   entry->timestamp_ms = timestamp_ms;
 
-  if (!persistence_queue_.enqueue(entry)) {
-    // Fallback NO LONGER BLOCKS
-    std::cerr << "[CRITICAL] Persistence queue full - DROPPING trade " << symbol
-              << " to prevent engine stall" << std::endl;
-
+  if (!persistence_queue_.try_enqueue(entry)) {
+    // Spillover to disk to avoid data loss
+    appendSpilloverTrade(*entry);
     persistence_pool_.deallocate(entry);
   }
 
@@ -544,6 +605,7 @@ void DatabaseManager::persistenceWorker() {
       continue;
     }
 
+    bool persist_ok = true;
     try {
       ScopedConnection conn(*connection_pool_);
       pqxx::work txn(conn.get());
@@ -551,7 +613,7 @@ void DatabaseManager::persistenceWorker() {
       for (auto *entry : batch) {
         if (entry->type == PersistenceType::ORDER) {
           double price_dollars = static_cast<double>(entry->price) / 100.0;
-          txn.exec_params(R"(
+            txn.exec(R"(
                         INSERT INTO orders (order_id, user_id, symbol, side, order_type, quantity, price, status, timestamp_ms)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                         ON CONFLICT (order_id) DO UPDATE 
@@ -564,10 +626,10 @@ void DatabaseManager::persistenceWorker() {
                             status = EXCLUDED.status,
                             timestamp_ms = EXCLUDED.timestamp_ms,
                             updated_at = CURRENT_TIMESTAMP
-                    )",
-                          entry->order_id, entry->user_id, entry->symbol,
-                          entry->side, entry->order_type, entry->quantity,
-                          price_dollars, entry->status, entry->timestamp_ms);
+                )",
+              pqxx::params{entry->order_id, entry->user_id, entry->symbol,
+               entry->side, entry->order_type, entry->quantity,
+               price_dollars, entry->status, entry->timestamp_ms});
         } else if (entry->type == PersistenceType::TRADE) {
           double price_dollars = static_cast<double>(entry->price) / 100.0;
 
@@ -589,23 +651,33 @@ void DatabaseManager::persistenceWorker() {
                      << std::uppercase << (h1 ^ h2) << "_" << sequence;
           const std::string trade_id = id_builder.str();
 
-          txn.exec_params(R"(
+            txn.exec(R"(
                         INSERT INTO trades (trade_id, buy_order_id, sell_order_id, symbol, price, quantity, 
                                            buyer_id, seller_id, timestamp_ms)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                         ON CONFLICT (trade_id) DO NOTHING
-                    )",
-                          trade_id, entry->buy_order_id, entry->sell_order_id,
-                          entry->symbol, price_dollars, entry->quantity,
-                          entry->buyer_id, entry->seller_id,
-                          entry->timestamp_ms);
+                )",
+            pqxx::params{trade_id, entry->buy_order_id, entry->sell_order_id,
+                   entry->symbol, price_dollars, entry->quantity,
+                   entry->buyer_id, entry->seller_id, entry->timestamp_ms});
         }
       }
 
       txn.commit();
     } catch (const std::exception &e) {
+      persist_ok = false;
       std::cerr << "Persistence worker error: " << e.what() << std::endl;
-      // In a real system, we might retry or DLQ these events
+      // Spillover to disk to avoid data loss on DB failure
+    }
+
+    if (!persist_ok) {
+      for (auto *entry : batch) {
+        if (entry->type == PersistenceType::ORDER) {
+          appendSpilloverOrder(*entry);
+        } else if (entry->type == PersistenceType::TRADE) {
+          appendSpilloverTrade(*entry);
+        }
+      }
     }
 
     // Return to pool
@@ -637,8 +709,8 @@ bool DatabaseManager::logSecurityEvent(const std::string &event_type,
             VALUES ($1, $2, $3::inet, $4, $5::jsonb, $6, $7)
         )";
 
-    txn.exec_params(query, event_type, user_id, ip_address, connection_id,
-                    event_data, severity, timestamp_ms);
+    txn.exec(query, pqxx::params{event_type, user_id, ip_address, connection_id,
+                   event_data, severity, timestamp_ms});
     txn.commit();
 
     ENGINE_LOG_DEV(std::cout << "[SECURITY] Event logged: " << event_type
@@ -673,8 +745,8 @@ bool DatabaseManager::logCircuitBreakerEvent(const std::string &symbol,
             VALUES ($1, $2, $3, $4, $5)
         )";
 
-    txn.exec_params(query, symbol, level, trigger_dollars, reference_dollars,
-                    halt_duration_minutes);
+    txn.exec(query, pqxx::params{symbol, level, trigger_dollars, reference_dollars,
+                   halt_duration_minutes});
     txn.commit();
 
     std::cout << "[CIRCUIT BREAKER] Level " << level << " triggered for "
@@ -711,7 +783,7 @@ bool DatabaseManager::addStock(const std::string &symbol,
                 updated_at = CURRENT_TIMESTAMP
         )";
 
-    txn.exec_params(query, symbol, company_name, sector, initial_price);
+    txn.exec(query, pqxx::params{symbol, company_name, sector, initial_price});
     txn.commit();
 
     std::cout << "[ADMIN] Stock added: " << symbol << " (" << company_name
@@ -739,7 +811,7 @@ bool DatabaseManager::removeStock(const std::string &symbol) {
             WHERE symbol = $1
         )";
 
-    txn.exec_params(query, symbol);
+    txn.exec(query, pqxx::params{symbol});
     txn.commit();
 
     std::cout << "[ADMIN] Stock deactivated: " << symbol << std::endl;
@@ -768,7 +840,7 @@ bool DatabaseManager::updateStock(const std::string &symbol,
             WHERE symbol = $1
         )";
 
-    txn.exec_params(query, symbol, company_name, sector);
+    txn.exec(query, pqxx::params{symbol, company_name, sector});
     txn.commit();
 
     std::cout << "[ADMIN] Stock updated: " << symbol << std::endl;
@@ -831,13 +903,13 @@ DatabaseManager::getStockInfo(const std::string &symbol) {
     ScopedConnection conn(*connection_pool_);
     pqxx::work txn(conn.get());
 
-    auto res = txn.exec_params(R"(
+    auto res = txn.exec(R"(
             SELECT symbol, company_name, sector, COALESCE(market_cap, 0), initial_price, 
                    is_active, listing_date::text
             FROM stocks_master
             WHERE symbol = $1
-        )",
-                               symbol);
+      )",
+      pqxx::params{symbol});
 
     if (!res.empty()) {
       const auto &row = res[0];
@@ -884,7 +956,7 @@ bool DatabaseManager::loadUserAccount(const std::string &user_id,
         "total_trades, realized_pnl, is_active FROM user_accounts WHERE "
         "user_id = $1";
 
-    auto result = txn.exec_params(query, user_id);
+    auto result = txn.exec(query, pqxx::params{user_id});
 
     if (result.empty()) {
       return false; // User not found
@@ -931,11 +1003,13 @@ bool DatabaseManager::saveUserAccount(const UserAccount &account) {
         "total_trades = $10, realized_pnl = $11, is_active = $12 WHERE user_id "
         "= $1";
 
-    auto result = txn.exec_params(
-        query, account.user_id, account.cash, account.aapl_qty,
-        account.googl_qty, account.msft_qty, account.amzn_qty, account.tsla_qty,
-        account.buying_power, account.day_trading_buying_power,
-        account.total_trades, account.realized_pnl, account.is_active);
+    auto result = txn.exec(
+      query,
+      pqxx::params{account.user_id, account.cash, account.aapl_qty,
+             account.googl_qty, account.msft_qty, account.amzn_qty,
+             account.tsla_qty, account.buying_power,
+             account.day_trading_buying_power, account.total_trades,
+             account.realized_pnl, account.is_active});
 
     txn.commit();
     return result.affected_rows() > 0;
@@ -963,8 +1037,8 @@ bool DatabaseManager::createUserAccount(const std::string &user_id,
         "day_trading_buying_power, total_trades, realized_pnl, is_active) "
         "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)";
 
-    txn.exec_params(query, user_id, initial_cash, 0, 0, 0, 0, 0, initial_cash,
-                    initial_cash, 0, 0, 1);
+    txn.exec(query, pqxx::params{user_id, initial_cash, 0, 0, 0, 0, 0,
+                   initial_cash, initial_cash, 0, 0, 1});
 
     txn.commit();
     return true;

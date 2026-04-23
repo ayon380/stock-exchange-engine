@@ -10,6 +10,7 @@
 #pragma once
 #include <array>
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <thread>
 
@@ -86,8 +87,8 @@ private:
   static constexpr size_t MASK = Size - 1;
 
   struct alignas(64) Slot {
-    std::atomic<T *> data{nullptr};
-    std::atomic<bool> ready{false};
+    std::atomic<size_t> sequence{0};
+    T *data{nullptr};
   };
 
   alignas(64) std::array<Slot, Size> buffer_;
@@ -95,7 +96,11 @@ private:
   alignas(64) std::atomic<size_t> tail_{0};
 
 public:
-  MPSCQueue() = default;
+  MPSCQueue() {
+    for (size_t i = 0; i < Size; ++i) {
+      buffer_[i].sequence.store(i, std::memory_order_relaxed);
+    }
+  }
   ~MPSCQueue() = default;
 
   // Non-copyable, non-movable
@@ -105,55 +110,67 @@ public:
   MPSCQueue &operator=(MPSCQueue &&) = delete;
 
   // Producer side (multiple threads)
-  // Producer side (multiple threads)
   bool enqueue(T *item) {
-    const size_t head = head_.fetch_add(1, std::memory_order_acq_rel) & MASK;
+    size_t pos = head_.load(std::memory_order_relaxed);
+    for (;;) {
+      Slot &slot = buffer_[pos & MASK];
+      size_t seq = slot.sequence.load(std::memory_order_acquire);
+      intptr_t diff = static_cast<intptr_t>(seq) - static_cast<intptr_t>(pos);
 
-    // Wait for slot to be available with timeout to prevent livelock
-    int retries = 0;
-    // Approx 1ms timeout with yield (assuming yield takes ~1us, 10000 retries
-    // is safe upper bound)
-    const int MAX_RETRIES = 10000;
-
-    while (buffer_[head].ready.load(std::memory_order_acquire)) {
-      if (++retries > MAX_RETRIES) {
-        // Timeout: Consumer is slow or dead.
-        // Mark slot as "skipped" by storing nullptr and setting ready=true.
-        // This allows future dequeue calls to advance past this slot.
-        buffer_[head].data.store(nullptr, std::memory_order_relaxed);
-        buffer_[head].ready.store(true, std::memory_order_release);
-        return false; // Failed to enqueue
+      if (diff == 0) {
+        if (head_.compare_exchange_weak(pos, pos + 1, std::memory_order_relaxed)) {
+          slot.data = item;
+          slot.sequence.store(pos + 1, std::memory_order_release);
+          return true;
+        }
+      } else if (diff < 0) {
+        // Queue is full, wait until consumer advances
+        std::this_thread::yield();
+        pos = head_.load(std::memory_order_relaxed);
+      } else {
+        pos = head_.load(std::memory_order_relaxed);
       }
-      std::this_thread::yield();
+    }
+  }
+
+  // Producer side (multiple threads) - non-blocking attempt
+  bool try_enqueue(T *item) {
+    size_t pos = head_.load(std::memory_order_relaxed);
+    Slot &slot = buffer_[pos & MASK];
+    size_t seq = slot.sequence.load(std::memory_order_acquire);
+    intptr_t diff = static_cast<intptr_t>(seq) - static_cast<intptr_t>(pos);
+
+    if (diff == 0) {
+      if (head_.compare_exchange_strong(pos, pos + 1, std::memory_order_relaxed)) {
+        slot.data = item;
+        slot.sequence.store(pos + 1, std::memory_order_release);
+        return true;
+      }
     }
 
-    buffer_[head].data.store(item, std::memory_order_relaxed);
-    buffer_[head].ready.store(true, std::memory_order_release);
-    return true;
+    return false;
   }
 
   // Consumer side (single thread only)
   T *dequeue() {
-    // Retry loop to handle skipped/failed slots
-    while (true) {
-      const size_t tail = tail_.load(std::memory_order_relaxed);
+    size_t pos = tail_.load(std::memory_order_relaxed);
+    for (;;) {
+      Slot &slot = buffer_[pos & MASK];
+      size_t seq = slot.sequence.load(std::memory_order_acquire);
+      intptr_t diff = static_cast<intptr_t>(seq) - static_cast<intptr_t>(pos + 1);
 
-      if (!buffer_[tail].ready.load(std::memory_order_acquire)) {
-        return nullptr; // Nothing ready (reached head)
+      if (diff == 0) {
+        if (tail_.compare_exchange_weak(pos, pos + 1, std::memory_order_relaxed)) {
+          T *item = slot.data;
+          slot.data = nullptr;
+          slot.sequence.store(pos + Size, std::memory_order_release);
+          return item;
+        }
+      } else if (diff < 0) {
+        return nullptr; // Queue is empty
+      } else {
+        pos = tail_.load(std::memory_order_relaxed);
       }
-
-      T *item = buffer_[tail].data.load(std::memory_order_relaxed);
-      buffer_[tail].data.store(nullptr, std::memory_order_relaxed);
-      buffer_[tail].ready.store(false, std::memory_order_release);
-      tail_.store((tail + 1) & MASK, std::memory_order_release);
-
-      if (item) {
-        return item;
-      }
-
-      // If item is nullptr, it was a skipped slot (producer timed out).
-      // Since ready was true, we've consumed this slot.
-      // Loop again to try the next slot immediately.
     }
   }
 };

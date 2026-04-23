@@ -22,6 +22,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <fstream>
 
 // Fixed-point arithmetic types
 using Price = int64_t;
@@ -62,6 +63,7 @@ private:
   std::string connection_string_;
   size_t pool_size_;
   std::atomic<size_t> active_connections_{0};
+  std::atomic<bool> shutting_down_{false};
 
 public:
   ConnectionPool(const std::string &connection_string, size_t pool_size = 5)
@@ -96,7 +98,14 @@ public:
     std::unique_lock<std::mutex> lock(pool_mutex_);
 
     // Wait for an available connection
-    pool_cv_.wait(lock, [this]() { return !available_connections_.empty(); });
+    pool_cv_.wait(lock, [this]() {
+      return shutting_down_.load(std::memory_order_relaxed) ||
+             !available_connections_.empty();
+    });
+
+    if (shutting_down_.load(std::memory_order_relaxed)) {
+      throw std::runtime_error("Connection pool shutting down");
+    }
 
     auto conn = std::move(available_connections_.front());
     available_connections_.pop();
@@ -105,8 +114,16 @@ public:
 
   void release(std::unique_ptr<pqxx::connection> conn) {
     std::lock_guard<std::mutex> lock(pool_mutex_);
+    if (shutting_down_.load(std::memory_order_relaxed)) {
+      return;
+    }
     available_connections_.push(std::move(conn));
     pool_cv_.notify_one();
+  }
+
+  void shutdown() {
+    shutting_down_.store(true, std::memory_order_relaxed);
+    pool_cv_.notify_all();
   }
 
   size_t available_count() const {
@@ -181,6 +198,11 @@ private:
       persistence_queue_; // Lock-free queue for persistence events
   MemoryPool<PersistenceEntry, 16384>
       persistence_pool_; // Memory pool for events
+    std::mutex spillover_mutex_;
+    std::ofstream spillover_file_;
+
+    void appendSpilloverOrder(const PersistenceEntry &entry);
+    void appendSpilloverTrade(const PersistenceEntry &entry);
 
   void persistenceWorker();
 
